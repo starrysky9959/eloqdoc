@@ -1,0 +1,118 @@
+Import("env")
+Import("get_option")
+
+import os
+
+def FindPath(file_name):
+    """Search for a file in a list of directories."""
+    search_paths = ['/usr/include', '/usr/local/include', '/opt/include']
+    for path in search_paths:
+        candidate = os.path.join(path, file_name)
+        if os.path.exists(candidate):
+            return os.path.dirname(candidate)
+    return None
+
+env = env.Clone()
+# conf = Configure(env)
+# conf.Finish()
+env.InjectMongoIncludePaths()
+
+env.Append(CPPDEFINES=[
+    "OVERRIDE_GFLAGS_NAMESPACE",
+    "RANGE_PARTITION_ENABLED",
+    "BRPC_WITH_GLOG",
+    "USE_ROCKSDB_LOG_STATE",
+    # "BRPC_ENABLE_CPU_PROFILER",
+    "EXT_TX_PROC_ENABLED",
+    "STATISTICS"
+])
+# env.Append(LIBPATH=["#src/mongo/db/modules/eloq/build"])
+env["CPPPATH"].extend(
+    [
+        ".",
+        "src/base",
+        "src/store_handler",
+        "tx_service/include",
+        "tx_service/include/cc",
+        "tx_service/include/fault",
+        "tx_service/include/proto",
+        "tx_service/include/remote",
+        "tx_service/include/store",
+        "tx_service/tx-log-protos",
+        "tx_service/abseil-cpp",
+        "log_service/include",
+        "eloq_metrics/include",
+        FindPath("mimalloc-2.1/mimalloc.h"),
+    ]
+)
+print("CPPDEFINES: ", env["CPPDEFINES"])
+print("CPPPATH: ", env["CPPPATH"])
+print("LINKFLAGS: ", env["LINKFLAGS"])
+
+# print("LIBPATH: ", env["LIBPATH"])
+# print("LD_LIBRARY_PATH: ", env["LD_LIBRARY_PATH"])
+# print("LINKFLAGS", env["LINKFLAGS"])
+
+env.Library(
+    target="storage_eloq_core",
+    source=[
+        "src/eloq_kv_engine.cpp",
+        "src/eloq_record_store.cpp",
+        "src/eloq_recovery_unit.cpp",
+        "src/eloq_index.cpp",
+        "src/eloq_cursor.cpp",
+        "src/eloq_options_init.cpp",
+        "src/eloq_global_options.cpp",
+        "src/base/eloq_key.cpp",
+        "src/base/eloq_record.cpp",
+        "src/base/eloq_table_schema.cpp",
+        "src/base/eloq_catalog_factory.cpp",
+        "src/store_handler/cass_handler.cpp",
+        "src/store_handler/cass_scanner.cpp",
+    ],
+    LIBDEPS=[
+        "$BUILD_DIR/mongo/base",
+        "$BUILD_DIR/mongo/db/namespace_string",
+        "$BUILD_DIR/mongo/db/server_options_servers",
+        "$BUILD_DIR/mongo/db/storage/key_string",
+        "$BUILD_DIR/mongo/db/storage/kv/kv_prefix",
+        "$BUILD_DIR/mongo/db/service_context",
+        "$BUILD_DIR/mongo/db/storage/index_entry_comparison",
+        "$BUILD_DIR/mongo/db/storage/oplog_hack",
+        "$BUILD_DIR/mongo/db/storage/kv/kv_engine",
+        "#src/mongo/db/modules/eloq/build/txservice",
+        "#src/mongo/db/modules/eloq/build/logservice",
+        "#src/mongo/db/modules/eloq/build/eloq_metrics",
+        "#src/mongo/db/modules/eloq/build/cassandra_static" \
+            if get_option('link-model') == 'static' \
+            else "#src/mongo/db/modules/eloq/build/cassandra",
+    ],
+    LIBDEPS_PRIVATE=[],
+    SYSLIBDEPS=[
+        "mimalloc",
+        "protobuf",
+        "glog",
+        "brpc",
+        "braft",
+        "rocksdb", # logservice
+    ],
+)
+
+env.Library(
+    target="storage_eloq",
+    source=[
+        "src/eloq_init.cpp",
+    ],
+    LIBDEPS=[
+        # "$BUILD_DIR/mongo/db/db_raii",
+        # "$BUILD_DIR/mongo/db/storage/storage_engine_impl",
+        "$BUILD_DIR/mongo/db/storage/storage_engine_lock_file",
+        "$BUILD_DIR/mongo/db/storage/storage_engine_metadata",
+        "$BUILD_DIR/mongo/db/storage/kv/kv_engine",
+        "storage_eloq_core",
+    ],
+    LIBDEPS_PRIVATE=[
+        "$BUILD_DIR/mongo/db/storage/storage_engine_common",
+    ],
+    LIBDEPS_DEPENDENTS=["$BUILD_DIR/mongo/db/serveronly"],
+)

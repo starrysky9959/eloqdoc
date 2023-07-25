@@ -1,0 +1,4 @@
+*.vcproj -crlf -diff -merge
+*.pbxproj -crlf -diff -merge
+*.sh text eol=lf
+shell/msvc/ipch/mongo-56e29e4d/mongo-1b36a34c.ipch filter=lfs diff=lfs merge=lfs -text

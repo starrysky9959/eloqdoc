@@ -1,0 +1,56 @@
+If:
+  PathMatch: src/.*
+  PathExclude:
+    [
+      src/mongo/db/modules/eloq/cass/.*,
+      src/mongo/db/modules/eloq/tx_service/.*,
+      src/mongo/db/modules/eloq/eloq_metrics/.*,
+    ]
+CompileFlags:
+  CompilationDatabase: ./
+  Add: [-Isrc/third_party/asio-master/asio/include, -Wall, -I/usr/lib/gcc/x86_64-linux-gnu/13/include]
+Diagnostics:
+  Suppress: builtin_definition
+  UnusedIncludes: Strict
+  ClangTidy:
+    Add: [
+        bugprone-*,
+        clang-analyzer-*,
+        concurrency-*,
+        cppcoreguidelines-*,
+        google-*,
+        modernize-*,
+        performance-*,
+      ]
+    Remove: [
+        modernize-use-trailing-return-type
+    ]
+
+---
+If:
+  PathMatch:
+    [
+      src/mongo/db/modules/eloq/cass/.*,
+      src/mongo/db/modules/eloq/tx_service/.*,
+      src/mongo/db/modules/eloq/log_service/.*,
+      src/mongo/db/modules/eloq/eloq_metrics/.*,
+    ]
+CompileFlags:
+  CompilationDatabase: src/mongo/db/modules/eloq/build
+  Add: [-Wall, -I/usr/lib/gcc/x86_64-linux-gnu/13/include]
+Diagnostics:
+  Suppress: builtin_definition
+  UnusedIncludes: Strict
+  ClangTidy:
+    Add: [
+        bugprone-*,
+        clang-analyzer-*,
+        concurrency-*,
+        cppcoreguidelines-*,
+        google-*,
+        modernize-*,
+        performance-*,
+      ]
+    Remove: [
+        modernize-use-trailing-return-type
+    ]

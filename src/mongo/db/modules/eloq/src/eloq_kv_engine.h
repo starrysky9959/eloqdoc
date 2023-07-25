@@ -1,0 +1,178 @@
+/**
+ *    Copyright (C) 2025 EloqData Inc.
+ *
+ *    This program is free software: you can redistribute it and/or modify
+ *    it under the license:
+ *    1. GNU Affero General Public License, version 3, as published by the Free
+ *    Software Foundation.
+ *
+ *    This program is distributed in the hope that it will be useful,
+ *    but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *    GNU Affero General Public License for more details.
+ *
+ *    You should have received a copy of the GNU Affero General Public License
+ *    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+#pragma once
+
+#include <memory>
+#include <vector>
+
+#include "mongo/db/storage/kv/kv_engine.h"
+
+#include "mongo/db/modules/eloq/src/base/eloq_catalog_factory.h"
+#include "mongo/db/modules/eloq/src/base/eloq_log_agent.h"
+#include "mongo/db/modules/eloq/src/eloq_index.h"
+#include "mongo/db/modules/eloq/src/eloq_record_store.h"
+
+#include "mongo/db/modules/eloq/log_service/include/log_server.h"
+#include "mongo/db/modules/eloq/tx_service/include/tx_service.h"
+
+namespace mongo {
+class MongoSystemHandler : public txservice::SystemHandler {
+public:
+    ~MongoSystemHandler() override = default;
+
+    void ReloadCache(std::function<void(bool)> done) override {
+        done(true);
+    }
+};
+
+class EloqKVEngine final : public KVEngine {
+    // friend class EloqRecordStore;
+
+public:
+    explicit EloqKVEngine(const std::string& path);
+
+    ~EloqKVEngine() override;
+
+    void waitBootstrap();
+
+    // void notifyStartupComplete() override;
+
+    // void checkpoint() override;
+
+    bool supportsRecoveryTimestamp() const override;
+
+    boost::optional<Timestamp> getRecoveryTimestamp() const override;
+
+    // void setOldestActiveTransactionTimestampCallback(
+    //     StorageEngine::OldestActiveTransactionTimestampCallback callback) override;
+
+    RecoveryUnit* newRecoveryUnit() override;
+    RecoveryUnit::UPtr newRecoveryUnitUPtr() override;
+
+    void listDatabases(std::vector<std::string>& out) const override;
+    bool databaseExists(std::string_view dbName) const override;
+    void listCollections(std::string_view dbName, std::vector<std::string>& out) const override;
+    void listCollections(std::string_view dbName, std::set<std::string>& out) const override;
+
+    std::pair<bool, Status> lockCollection(OperationContext* opCtx,
+                                           StringData ns,
+                                           bool isForWrite) override;
+    std::unique_ptr<RecordStore> getRecordStore(OperationContext* opCtx,
+                                                StringData ns,
+                                                StringData ident,
+                                                const CollectionOptions& options) override;
+    std::unique_ptr<RecordStore> getGroupedRecordStore(OperationContext* opCtx,
+                                                       StringData ns,
+                                                       StringData ident,
+                                                       const CollectionOptions& options,
+                                                       KVPrefix prefix) override;
+
+    SortedDataInterface* getSortedDataInterface(OperationContext* opCtx,
+                                                StringData ident,
+                                                const IndexDescriptor* desc) override;
+    SortedDataInterface* getGroupedSortedDataInterface(OperationContext* opCtx,
+                                                       StringData ident,
+                                                       const IndexDescriptor* desc,
+                                                       KVPrefix prefix) override;
+
+    Status createRecordStore(OperationContext* opCtx,
+                             StringData ns,
+                             StringData ident,
+                             const CollectionOptions& options) override;
+
+    Status createGroupedRecordStore(OperationContext* opCtx,
+                                    StringData ns,
+                                    StringData ident,
+                                    const CollectionOptions& options,
+                                    KVPrefix prefix) override;
+
+    Status createSortedDataInterface(OperationContext* opCtx,
+                                     StringData ident,
+                                     const IndexDescriptor* desc) override;
+    Status createGroupedSortedDataInterface(OperationContext* opCtx,
+                                            StringData ident,
+                                            const IndexDescriptor* desc,
+                                            KVPrefix prefix) override;
+
+    // Status dropSortedDataInterface(OperationContext* opCtx, StringData ident) override;
+
+    int64_t getIdentSize(OperationContext* opCtx, StringData ident) override;
+
+    Status repairIdent(OperationContext* opCtx, StringData ident) override;
+
+    Status dropIdent(OperationContext* opCtx, StringData ident) override;
+
+    // void dropIdentForImport(OperationContext* opCtx, StringData ident) override;
+
+    bool isDurable() const override {
+        return true;
+    }
+
+    bool isEphemeral() const override {
+        return false;
+    }
+
+    bool supportsDocLocking() const override {
+        return true;
+    }
+
+    bool supportsDirectoryPerDB() const override;
+
+    /*
+     * retrieve Eloq catalog
+     */
+    bool hasIdent(OperationContext* opCtx, StringData ident) const override;
+
+    /*
+     * retrieve Mongo catalog recordstore
+     */
+    std::vector<std::string> getAllIdents(OperationContext* opCtx) const override;
+
+    void cleanShutdown() override;
+
+    void setJournalListener(JournalListener* jl) override;
+
+    Timestamp getAllCommittedTimestamp() const override;
+
+    bool supportsReadConcernSnapshot() const override {
+        return true;
+    }
+
+    bool supportsReadConcernMajority() const override {
+        return true;
+    }
+
+    void startOplogManager(OperationContext* opCtx, EloqRecordStore* oplogRecordStore);
+
+    void haltOplogManager(EloqRecordStore* oplogRecordStore, bool shuttingDown);
+
+private:
+    std::unique_ptr<txservice::TxService> _txService;
+    std::unique_ptr<txlog::LogServer> _logServer;
+    Eloq::MongoCatalogFactory _catalogFactory;
+    MongoSystemHandler _mongoSystemHandler;
+    std::string _path;
+    std::unique_ptr<Eloq::MongoLogAgent> _logAgent;
+
+    mutable std::mutex _identCollectionMapMutex;
+    std::map<std::string, EloqRecordStore*, std::less<>> _identCollectionMap;
+
+    mutable std::mutex _identIndexMapMutex;
+    std::map<std::string, EloqIndex*, std::less<>> _identIndexMap;
+};
+}  // namespace mongo

@@ -1,0 +1,12 @@
+[submodule "src/mongo/db/modules/eloq/cass"]
+	path = src/mongo/db/modules/eloq/cass
+	url = git@github.com:eloqdata/cpp-driver.git
+[submodule "src/mongo/db/modules/eloq/eloq_metrics"]
+	path = src/mongo/db/modules/eloq/eloq_metrics
+	url = git@github.com:eloqdata/eloq-metrics.git
+[submodule "src/mongo/db/modules/eloq/tx_service"]
+	path = src/mongo/db/modules/eloq/tx_service
+	url = git@github.com:eloqdata/tx_service.git
+[submodule "src/mongo/db/modules/eloq/log_service"]
+	path = src/mongo/db/modules/eloq/log_service
+	url = git@github.com:eloqdata/log_service.git
