@@ -1,6 +1,6 @@
 # EloqDoc
 
-A MongoDB-compatible, high-performance, elastic, distributed document database.
+A MongoDB API compatible , high-performance, elastic, distributed document database.
 
 [![GitHub Stars](https://img.shields.io/github/stars/eloqdata/eloqdoc?style=social)](https://github.com/eloqdata/eloqdoc/stargazers)
 
@@ -8,7 +8,7 @@ A MongoDB-compatible, high-performance, elastic, distributed document database.
 
 ## Overview
 
-EloqDoc is a high-performance, elastic, distributed transactional document database with MongoDB compability. Built on top of [Data Substrate](https://www.eloqdata.com/blog/2024/08/11/data-substrate), it leverages a decoupled storage and compute architecture to deliver fast scaling, ACID transaction support, and efficient resource utilization.
+EloqDoc is a high-performance, elastic, distributed transactional document database with MongoDB API compability. Built on top of [Data Substrate](https://www.eloqdata.com/blog/2024/08/11/data-substrate), it leverages a decoupled storage and compute architecture to deliver fast scaling, ACID transaction support, and efficient resource utilization.
 
 EloqDoc eliminates the need for sharding components like `mongos` in MongoDB, offering a simpler, more powerful distributed database experience. It’s ideal for workloads requiring rapid scaling, high write throughput, and flexible resource management.
 
@@ -16,13 +16,13 @@ EloqDoc is a fork of MongoDB 4.0.3 that replaces the WiredTiger storage engine w
 
 Explore [EloqDoc](https://www.eloqdata.com/product/eloqdoc) website for more details.
 
-👉 **Use Cases**: web applications, ducument store, content management systems — anywhere you need MongoDB compatibility **but** demand distributed performance and elasticity.
+👉 **Use Cases**: web applications, ducument store, content management systems — anywhere you need MongoDB API compatibility **but** demand distributed performance and elasticity.
 
 ---
 
 ## Key Features
 
-### ⚙️ MongoDB Compatibility
+### ⚙️ MongoDB API Compatibility
 
 Seamlessly integrates with MongoDB clients, drivers, and tools, enabling you to use existing MongoDB workflows with a distributed backend.
 
@@ -73,11 +73,15 @@ It is recommended to use our Docker image with pre-installed dependencies for a 
 
 ```bash
 docker pull eloqdata/eloqdoc-build-ubuntu2404:latest
+docker run -it --name eloqdoc eloqdata/eloqdoc-build-ubuntu2404
+git clone https://github.com/eloqdata/eloqdoc.git
+cd eloqdoc
 ```
-
-Or, you can manually run the following script to install dependencies on your local machine.
+Alternatively, you can also pull the source code in an existing Linux environment (currently, ubuntu2404 is preferred), and manually run the script to install dependencies on your local machine. Notice that this might take a while.
 
 ```bash
+git clone https://github.com/eloqdata/eloqdoc.git
+cd eloqdoc
 bash scripts/install_dependency_ubuntu2404.sh
 ```
 
@@ -101,7 +105,6 @@ export INSTALL_PREFIX=/your/install/path/absolute
 Then, compile Eloq dependencies.
 
 ```bash
-cd eloqdoc
 cmake -S src/mongo/db/modules/eloq \
       -B src/mongo/db/modules/eloq/build \
       -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX
