@@ -53,12 +53,6 @@ Status EloqGlobalOptions::add(moe::OptionSection* options) {
                                   moe::StringVector,
                                   "IP address of the tx log service node");
     eloqOptions
-        .addOptionChaining("storage.eloq.txService.forkHostManager",
-                           "eloqForkHostManager",
-                           moe::Bool,
-                           "Fork host manager process")
-        .setDefault(moe::Value(true));
-    eloqOptions
         .addOptionChaining("storage.eloq.txService.hmIP",
                            "eloqHMIP",
                            moe::String,
@@ -477,14 +471,6 @@ Status EloqGlobalOptions::store(const moe::Environment& params,
             }
         }
     }
-
-    if (params.count("storage.eloq.txService.forkHostManager")) {
-        eloqGlobalOptions.forkHostManager =
-            params["storage.eloq.txService.forkHostManager"].as<bool>();
-    } else {
-        eloqGlobalOptions.forkHostManager = true;
-    }
-    log() << "Fork host manager: " << eloqGlobalOptions.forkHostManager;
     if (params.count("storage.eloq.txService.hmIP") &&
         params.count("storage.eloq.txService.hmPort")) {
         auto hmIP = params["storage.eloq.txService.hmIP"].as<std::string>();
@@ -496,7 +482,6 @@ Status EloqGlobalOptions::store(const moe::Environment& params,
 
         eloqGlobalOptions.hostManagerAddr = mongo::HostAndPort(hmIP, hmPort);
     }
-    log() << "Host manager address: " << eloqGlobalOptions.hostManagerAddr.toString();
     if (params.count("storage.eloq.txService.hmBinPath")) {
         auto hmBinPath = params["storage.eloq.txService.hmBinPath"].as<std::string>();
         if (hmBinPath.empty()) {
@@ -509,7 +494,6 @@ Status EloqGlobalOptions::store(const moe::Environment& params,
         }
         eloqGlobalOptions.hostManagerBinPath = std::move(hmBinPath);
     }
-    log() << "Host manager binary path: " << eloqGlobalOptions.hostManagerBinPath;
     if (params.count("storage.eloq.txService.rangeSplitWorkerNum")) {
         eloqGlobalOptions.rangeSplitWorkerNum =
             params["storage.eloq.txService.rangeSplitWorkerNum"].as<int>();
