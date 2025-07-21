@@ -111,10 +111,9 @@ compile_and_install_ent() {
             -DEXT_TX_PROC_ENABLED=ON \
             -DSTATISTICS=ON \
             -DUSE_ASAN=OFF \
-            -DWITH_ROCKSDB_CLOUD=OFF \
+            -DWITH_ROCKSDB_CLOUD=S3 \
             -DWITH_DATA_STORE=ELOQDSS_ROCKSDB_CLOUD_S3 \
             -DFORK_HM_PROCESS=ON \
-            -DWITH_ROCKSDB_CLOUD=S3 \
             -DOPEN_LOG_SERVICE=OFF
 
       cmake --build src/mongo/db/modules/eloq/build
