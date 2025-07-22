@@ -13,6 +13,8 @@ resources:
     base_branch: "main"
     access_token: ((git-token))
     ignore_drafts: true
+    disable_forks: false
+    labels: ["trigger-ci"]
 
 - name: eloq_logservice_src
   type: git
@@ -33,7 +35,7 @@ resources:
   source:
     repository: monographdb/monograph-dev-ci-ubuntu2404
     username: monographdb
-    password: ((docker_hub_pass))
+    password: ((docker-secret-key))
 
 jobs:
   - name: compile-test
