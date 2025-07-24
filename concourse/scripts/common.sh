@@ -72,7 +72,8 @@ compile_and_install() {
       echo "scons compile and install mongo."
 
       # Detect CPU cores for optimal parallel builds
-      CPU_CORE_SIZE=$(nproc 2>/dev/null || grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 4)
+      # CPU_CORE_SIZE=$(nproc 2>/dev/null || grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 4)
+      CPU_CORE_SIZE=4
       OPEN_LOG_SERVICE=ON python2 buildscripts/scons.py MONGO_VERSION=4.0.3 \
             VARIANT_DIR=Debug \
             LIBPATH=/usr/local/lib \
@@ -122,7 +123,8 @@ compile_and_install_ent() {
       echo "scons compile and install mongo."
 
       # Detect CPU cores for optimal parallel builds
-      CPU_CORE_SIZE=$(nproc 2>/dev/null || grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 4)
+      # CPU_CORE_SIZE=$(nproc 2>/dev/null || grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 4)
+      CPU_CORE_SIZE=4
       env OPEN_LOG_SERVICE=0 WITH_ROCKSDB_CLOUD=S3 FORK_HM_PROCESS=1 \
       python2 buildscripts/scons.py MONGO_VERSION=4.0.3 \
             VARIANT_DIR=Debug \
