@@ -239,10 +239,10 @@ void EloqCatalogRecordStore::deleteRecord(OperationContext* opCtx, const RecordI
             }
         }
 
-        std::chrono::milliseconds duration{uniformDist(randomEngine)};
+        mongo::Milliseconds duration{uniformDist(randomEngine)};
         MONGO_LOG(1) << "Fail to drop table in Eloq";
         MONGO_LOG(1) << "Sleep for " << duration.count() << "ms";
-        std::this_thread::sleep_for(duration);
+        opCtx->sleepFor(duration);
         MONGO_LOG(1) << "Retry count: " << i;
         catalogRecord.Reset();
     }
@@ -290,8 +290,9 @@ StatusWith<RecordId> EloqCatalogRecordStore::insertRecord(
                             "may do DDL on the same table.";
         } else {
             if (exist) {
-                return {ErrorCodes::NamespaceExists,
-                        "Collection already exists in Eloq storage engine"};
+                const char* msg = "Collection already exists in Eloq storage engine";
+                warning() << msg << ", ns: " << tableName.StringView();
+                return {ErrorCodes::NamespaceExists, msg};
             }
 
             auto status = ru->createTable(tableName, metadata);
@@ -300,9 +301,9 @@ StatusWith<RecordId> EloqCatalogRecordStore::insertRecord(
             }
         }
 
-        std::chrono::milliseconds duration{uniformDist(randomEngine)};
+        mongo::Milliseconds duration{uniformDist(randomEngine)};
         MONGO_LOG(1) << "Fail to create table in Eloq. Sleep for " << duration.count() << "ms";
-        std::this_thread::sleep_for(duration);
+        opCtx->sleepFor(duration);
         MONGO_LOG(1) << "Retry count: " << i;
         catalogRecord.Reset();
     }
@@ -378,9 +379,9 @@ Status EloqCatalogRecordStore::updateRecord(OperationContext* opCtx,
             }
         }
 
-        std::chrono::milliseconds duration{uniformDist(randomEngine)};
+        mongo::Milliseconds duration{uniformDist(randomEngine)};
         MONGO_LOG(1) << "Fail to create table in Eloq. Sleep for " << duration.count() << "ms";
-        std::this_thread::sleep_for(duration);
+        opCtx->sleepFor(duration);
         MONGO_LOG(1) << "Retry count: " << i;
         catalogRecord.Reset();
     }
@@ -750,13 +751,13 @@ void EloqRecordStore::deleteRecord(OperationContext* opCtx, const RecordId& id) 
 
     // For primary index.
     auto mongoKey = std::make_unique<Eloq::MongoKey>(id);
-    auto mongoRecord = std::make_unique<Eloq::MongoRecord>();
+    Eloq::MongoRecord mongoRecord;
     uint64_t keySchemaVersion = table._schema->KeySchema()->SchemaTs();
 
     // read the record if the table is creating indexes.
     if (table._creatingIndexes.size() > 0) {
         auto [exists, err] =
-            ru->getKV(opCtx, _tableName, keySchemaVersion, mongoKey.get(), mongoRecord.get(), true);
+            ru->getKV(opCtx, _tableName, keySchemaVersion, mongoKey.get(), &mongoRecord, true);
         uassertStatusOK(TxErrorCodeToMongoStatus(err));
     }
 
@@ -769,7 +770,7 @@ void EloqRecordStore::deleteRecord(OperationContext* opCtx, const RecordId& id) 
 
     // remove record from creating index.
     if (table._creatingIndexes.size() > 0) {
-        BSONObj recordObj(mongoRecord->EncodedBlobData());
+        BSONObj recordObj(mongoRecord.EncodedBlobData());
         for (const EloqRecoveryUnit::SecondaryIndex* index : table._creatingIndexes) {
             const txservice::TableName& indexName = index->first;
             const auto* keySchema =
@@ -1093,7 +1094,6 @@ Status EloqRecordStore::_insertRecords(OperationContext* opCtx,
         if (err != txservice::TxErrorCode::NO_ERROR) {
             return TxErrorCodeToMongoStatus(err);
         }
-
         if (exists) {
             return {ErrorCodes::DuplicateKey, "DuplicateKey"};
         }
