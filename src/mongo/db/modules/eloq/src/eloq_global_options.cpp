@@ -109,8 +109,8 @@ Status EloqGlobalOptions::add(moe::OptionSection* options) {
                            "eloqDeadlockIntervalSec",
                            moe::Int,
                            "Interval of dead lock check(s)")
-        .validRange(1, 3600)
-        .setDefault(moe::Value(300));
+        .validRange(1, 30)
+        .setDefault(moe::Value(3));
     eloqOptions
         .addOptionChaining("storage.eloq.txService.txlogGroupReplicaNum",
                            "eloqTxlogGroupReplicaNum",
