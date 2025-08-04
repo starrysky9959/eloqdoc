@@ -12,14 +12,15 @@ cd $WORKSPACE
 whoami
 pwd
 ls
-sudo chown -R mono $PWD
+current_user=$(whoami)
+sudo chown -R $current_user $PWD
 
 # make coredump dir writable.
 if [ ! -d "/var/crash" ]; then sudo mkdir -p /var/crash; fi
 sudo chmod 777 /var/crash
 
-sudo chown -R mono /home/mono/workspace
-cd /home/mono/workspace
+sudo chown -R $current_user /home/$current_user/workspace
+cd /home/$current_user/workspace
 ln -s $WORKSPACE/py_tpcc_src py-tpcc
 ln -s $WORKSPACE/eloqdoc_src mongo
 cd mongo
@@ -33,7 +34,7 @@ pushd tx_service
 ln -s $WORKSPACE/raft_host_manager_src raft_host_manager
 popd
 
-cd /home/mono/workspace/mongo
+cd /home/$current_user/workspace/mongo
 
 # Generate unique bucket names for main test
 BUCKET_NAME="main-test"
