@@ -292,8 +292,9 @@ EloqKVEngine::EloqKVEngine(const std::string& path) : _dbPath(path) {
         rocksdb_cloud_config.aws_access_key_id_ = eloqGlobalOptions.awsAccessKeyId;
         rocksdb_cloud_config.aws_secret_key_ = eloqGlobalOptions.awsSecretKey;
 #endif /* WITH_ROCKSDB_CLOUD == CS_TYPE_S3 */
-        rocksdb_cloud_config.bucket_name_ = eloqGlobalOptions.rocksdbCloudBucketName + "-log";
+        rocksdb_cloud_config.bucket_name_ = eloqGlobalOptions.rocksdbCloudBucketName;
         rocksdb_cloud_config.bucket_prefix_ = eloqGlobalOptions.rocksdbCloudBucketPrefix;
+        rocksdb_cloud_config.object_path_ = eloqGlobalOptions.rocksdbCloudObjectPath + "_log";
         rocksdb_cloud_config.region_ = eloqGlobalOptions.rocksdbCloudRegion;
         rocksdb_cloud_config.endpoint_url_ = eloqGlobalOptions.rocksdbCloudEndpointUrl;
         rocksdb_cloud_config.sst_file_cache_size_ =
@@ -542,6 +543,7 @@ void EloqKVEngine::initDataStoreService() {
 #endif
     rocksdb_cloud_config.bucket_name_ = eloqGlobalOptions.rocksdbCloudBucketName;
     rocksdb_cloud_config.bucket_prefix_ = eloqGlobalOptions.rocksdbCloudBucketPrefix;
+    rocksdb_cloud_config.object_path_ = eloqGlobalOptions.rocksdbCloudObjectPath;
     rocksdb_cloud_config.region_ = eloqGlobalOptions.rocksdbCloudRegion;
     rocksdb_cloud_config.s3_endpoint_url_ = eloqGlobalOptions.rocksdbCloudEndpointUrl;
     rocksdb_cloud_config.sst_file_cache_size_ =

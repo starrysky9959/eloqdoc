@@ -290,6 +290,12 @@ Status EloqGlobalOptions::add(moe::OptionSection* options) {
                            "RocksDB cloud bucket prefix")
         .setDefault(moe::Value(""));
     eloqOptions
+        .addOptionChaining("storage.eloq.storage.rocksdbCloudObjectPath",
+                           "eloqRocksdbCloudObjectPath",
+                           moe::String,
+                           "RocksDB cloud object path")
+        .setDefault(moe::Value("rocksdb-cloud"));
+    eloqOptions
         .addOptionChaining("storage.eloq.storage.rocksdbCloudRegion",
                            "eloqRocksdbCloudRegion",
                            moe::String,
@@ -646,6 +652,10 @@ Status EloqGlobalOptions::store(const moe::Environment& params,
     if (params.count("storage.eloq.storage.rocksdbCloudBucketPrefix")) {
         eloqGlobalOptions.rocksdbCloudBucketPrefix =
             params["storage.eloq.storage.rocksdbCloudBucketPrefix"].as<std::string>();
+    }
+    if (params.count("storage.eloq.storage.rocksdbCloudObjectPath")) {
+        eloqGlobalOptions.rocksdbCloudObjectPath =
+            params["storage.eloq.storage.rocksdbCloudObjectPath"].as<std::string>();
     }
     if (params.count("storage.eloq.storage.rocksdbCloudRegion")) {
         eloqGlobalOptions.rocksdbCloudRegion =

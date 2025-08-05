@@ -45,6 +45,7 @@ storage:
       awsSecretKey: "d78pZI8btixlnC7kHhtjEX573paLSm9R2lWwVfmu"
       rocksdbCloudBucketName: "eloqdoc-storage0"
       rocksdbCloudBucketPrefix: "rocksdb-cloud-"
+      rocksdbCloudObjectPath: "eloqdoc_db"
       rocksdbCloudRegion: "ap-northeast-1"
       rocksdbCloudEndpointUrl: "http://127.0.0.1:9000"
 

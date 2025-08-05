@@ -19,10 +19,10 @@
 *.tar.gz
 *.suo
 *.ncb
-*.idb 
-*.obj 
-*.opt 
-*.pch 
+*.idb
+*.obj
+*.opt
+*.pch
 *.jsh
 *.jsall
 *.pyc
@@ -182,3 +182,4 @@ config/*/*.conf
 .python-version
 *.pb.*
 .pre-commit-config.yaml
+install

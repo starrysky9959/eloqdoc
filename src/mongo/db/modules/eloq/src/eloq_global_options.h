@@ -90,6 +90,7 @@ public:
     std::string awsSecretKey;
     std::string rocksdbCloudBucketName;
     std::string rocksdbCloudBucketPrefix;
+    std::string rocksdbCloudObjectPath;
     std::string rocksdbCloudRegion;
     std::string rocksdbCloudEndpointUrl;
     std::string rocksdbCloudSstFileCacheSize;
