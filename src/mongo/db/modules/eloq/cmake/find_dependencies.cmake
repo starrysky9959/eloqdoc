@@ -102,7 +102,7 @@ message(STATUS "Dependencies: Found Glog. Library: ${GLOG_LIB}, Include director
 include_directories(${GLOG_INCLUDE_PATH})
 
 # --- RocksDB and Cloud SDKs (Conditional) ---
-# These dependencies are required if USE_ROCKSDB_LOG_STATE is ON 
+# These dependencies are required if USE_ROCKSDB_LOG_STATE is ON
 # or if WITH_DATA_STORE involves RocksDB (e.g., ELOQDSS_ROCKSDB_CLOUD_S3 for data_store).
 
 # Flag to track if RocksDB (base or cloud) is found and configured
@@ -117,7 +117,7 @@ if(USE_ROCKSDB_LOG_STATE)
     message(STATUS "Dependencies: RocksDB needed due to USE_ROCKSDB_LOG_STATE.")
 endif()
 # Check if data store configuration requires RocksDB
-if(DEFINED WITH_DATA_STORE AND (WITH_DATA_STORE STREQUAL "ELOQDSS_ROCKSDB_CLOUD_S3" OR WITH_DATA_STORE STREQUAL "ELOQDSS_ROCKSDB_CLOUD_GCS"))
+if(DEFINED WITH_DATA_STORE AND (WITH_DATA_STORE STREQUAL "ELOQDSS_ROCKSDB_CLOUD_S3" OR WITH_DATA_STORE STREQUAL "ELOQDSS_ROCKSDB_CLOUD_GCS" OR WITH_DATA_STORE STREQUAL "ELOQDSS_ROCKSDB"))
     set(NEED_ROCKSDB ON)
     message(STATUS "Dependencies: RocksDB needed due to WITH_DATA_STORE setting: ${WITH_DATA_STORE}.")
 endif()
@@ -214,6 +214,17 @@ if(NEED_ROCKSDB)
         message(STATUS "Dependencies: Added compile definition USE_GCP for GCS support.")
         # Module-specific definitions like ROCKSDB_CLOUD_FS_TYPE=2 or WITH_ROCKSDB_CLOUD=2 should be handled in module CMake files.
         set(ROCKSDB_CLOUD_SDK_FOUND ON)
+    else()
+        message(STATUS "Dependencies: RocksDB is requied")
+	find_library(ROCKSDB_LIB NAMES rocksdb)
+
+	if(NOT ROCKSDB_LIB)
+	    message(FATAL_ERROR "Dependencies: Failed to find all required lib path for RocksDB.")
+	endif()
+	message(STATUS "Dependenies: RocksDB lib path ${ROCKSDB_LIB}")
+	list(APPEND ROCKSDB_GLOBAL_LIBRARIES ${ROCKSDB_LIB} )
+
+	set(ROCKSDB_CLOUD_SDK_FOUND OFF)
     endif() # End of NEED_ROCKSDB_CLOUD_S3 / NEED_ROCKSDB_CLOUD_GCS
 
     # Find base RocksDB library and include paths, adjusting search paths if cloud SDK is used
@@ -290,4 +301,3 @@ FetchContent_Declare(
     GIT_TAG yaml-cpp-0.7.0 # Can be a tag (yaml-cpp-x.x.x), a commit hash, or a branch name (master)
 )
 FetchContent_MakeAvailable(yaml-cpp)
-

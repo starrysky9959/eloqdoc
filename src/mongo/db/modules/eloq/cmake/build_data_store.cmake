@@ -35,10 +35,10 @@ elseif(WITH_DATA_STORE STREQUAL "ELOQDSS_ROCKSDB_CLOUD_S3" OR WITH_DATA_STORE ST
         add_compile_definitions(ROCKSDB_CLOUD_FS_TYPE=1) # Module specific definition
         message(STATUS "DataStore: Configured for ELOQDSS_ROCKSDB_CLOUD_S3. KV_STORAGE_VAL=3. Added definitions DATA_STORE_TYPE_ELOQDSS_ROCKSDB_CLOUD_S3, ROCKSDB_CLOUD_FS_TYPE=1.")
     elseif(WITH_DATA_STORE STREQUAL "ELOQDSS_ROCKSDB_CLOUD_GCS")
-        set(KV_STORAGE_VAL 4 CACHE STRING "eloq_ds_gcs" FORCE) # More specific
+        set(KV_STORAGE_VAL 3 CACHE STRING "eloq_ds_gcs" FORCE) # More specific
         add_compile_definitions(DATA_STORE_TYPE_ELOQDSS_ROCKSDB_CLOUD_GCS)
         add_compile_definitions(ROCKSDB_CLOUD_FS_TYPE=2) # Module specific definition
-        message(STATUS "DataStore: Configured for ELOQDSS_ROCKSDB_CLOUD_GCS. KV_STORAGE_VAL=4. Added definitions DATA_STORE_TYPE_ELOQDSS_ROCKSDB_CLOUD_GCS, ROCKSDB_CLOUD_FS_TYPE=2.")
+        message(STATUS "DataStore: Configured for ELOQDSS_ROCKSDB_CLOUD_GCS. KV_STORAGE_VAL=3. Added definitions DATA_STORE_TYPE_ELOQDSS_ROCKSDB_CLOUD_GCS, ROCKSDB_CLOUD_FS_TYPE=2.")
     endif()
 
     if(NOT ROCKSDB_FOUND)
@@ -48,6 +48,16 @@ elseif(WITH_DATA_STORE STREQUAL "ELOQDSS_ROCKSDB_CLOUD_S3" OR WITH_DATA_STORE ST
     set(LOCAL_DATA_STORE_LIBRARY ${ROCKSDB_GLOBAL_LIBRARIES})
     set(LOCAL_DATA_STORE_INCLUDE_DIRS ${ROCKSDB_GLOBAL_INCLUDE_DIRS}) # These are already global includes
 
+    # Proto compilation for ELOQDSS
+    set(ELOQ_DSS_PROTO_DIR_PATH ${CMAKE_CURRENT_SOURCE_DIR}/store_handler/eloq_data_store_service)
+    message(NOTICE "data store service proto dir: ${ELOQ_DSS_PROTO_DIR_PATH}")
+    compile_protos_in_directory(${ELOQ_DSS_PROTO_DIR_PATH})
+    set(DS_COMPILED_PROTO_FILES ${COMPILED_PROTO_CC_FILES})
+    message(STATUS "DataStore: ELOQDSS compiled protos: ${DS_COMPILED_PROTO_FILES}")
+    list(APPEND LOCAL_DATA_STORE_INCLUDE_DIRS ${ELOQ_DSS_PROTO_DIR_PATH}) # Add proto dir to includes for this target
+elseif(WITH_DATA_STORE STREQUAL "ELOQDSS_ROCKSDB")
+    set(KV_STORAGE_VAL 3 CACHE STRING "eloq_ds" FORCE)
+    add_compile_definitions(DATA_STORE_TYPE_ELOQDSS_ROCKSDB)
     # Proto compilation for ELOQDSS
     set(ELOQ_DSS_PROTO_DIR_PATH ${CMAKE_CURRENT_SOURCE_DIR}/store_handler/eloq_data_store_service)
     message(NOTICE "data store service proto dir: ${ELOQ_DSS_PROTO_DIR_PATH}")
@@ -88,7 +98,7 @@ elseif(WITH_DATA_STORE STREQUAL "BIGTABLE")
         store_handler/bigtable_handler.cpp
         store_handler/bigtable_scanner.cpp)
     # LOCAL_DATA_STORE_LIBRARY already set
-elseif(WITH_DATA_STORE STREQUAL "ELOQDSS_ROCKSDB_CLOUD_S3" OR WITH_DATA_STORE STREQUAL "ELOQDSS_ROCKSDB_CLOUD_GCS")
+elseif(WITH_DATA_STORE STREQUAL "ELOQDSS_ROCKSDB_CLOUD_S3" OR WITH_DATA_STORE STREQUAL "ELOQDSS_ROCKSDB_CLOUD_GCS" OR WITH_DATA_STORE STREQUAL "ELOQDSS_ROCKSDB")
     set(_ELOQDSS_SOURCES_LIST
         store_handler/data_store_service_client.cpp
         store_handler/data_store_service_client_closure.cpp
@@ -98,11 +108,22 @@ elseif(WITH_DATA_STORE STREQUAL "ELOQDSS_ROCKSDB_CLOUD_S3" OR WITH_DATA_STORE ST
         store_handler/eloq_data_store_service/data_store_service.cpp
         store_handler/eloq_data_store_service/data_store_fault_inject.cpp
         store_handler/eloq_data_store_service/data_store_service_config.cpp
-        store_handler/eloq_data_store_service/rocksdb_cloud_data_store.cpp
         # ds_request.pb.cc will be added from DS_COMPILED_PROTO_FILES
         store_handler/eloq_data_store_service/rocksdb_config.cpp
+        store_handler/eloq_data_store_service/rocksdb_data_store_common.cpp
     )
-    if(DS_COMPILED_PROTO_FILES) 
+
+    if (WITH_DATA_STORE STREQUAL "ELOQDSS_ROCKSDB_CLOUD_S3" OR WITH_DATA_STORE STREQUAL "ELOQDSS_ROCKSDB_CLOUD_GCS")
+      SET(_ELOQDSS_SOURCES_LIST
+        ${_ELOQDSS_SOURCES_LIST}
+          store_handler/eloq_data_store_service/rocksdb_cloud_data_store.cpp)
+    elseif (WITH_DATA_STORE STREQUAL "ELOQDSS_ROCKSDB")
+      SET(_ELOQDSS_SOURCES_LIST
+        ${_ELOQDSS_SOURCES_LIST}
+          store_handler/eloq_data_store_service/rocksdb_data_store.cpp)
+    endif()
+
+    if(DS_COMPILED_PROTO_FILES)
         list(APPEND _ELOQDSS_SOURCES_LIST ${DS_COMPILED_PROTO_FILES})
         message(STATUS "DataStore: Appended DS_COMPILED_PROTO_FILES to _ELOQDSS_SOURCES_LIST.")
     endif()

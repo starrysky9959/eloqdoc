@@ -57,7 +57,7 @@
 
 #if (defined(DATA_STORE_TYPE_ELOQDSS_ROCKSDB_CLOUD_S3) ||  \
      defined(DATA_STORE_TYPE_ELOQDSS_ROCKSDB_CLOUD_GCS) || \
-     defined(DATA_STORE_TYPE_ELOQDSS_ELOQSTORE))
+     defined(DATA_STORE_TYPE_ELOQDSS_ROCKSDB) || defined(DATA_STORE_TYPE_ELOQDSS_ELOQSTORE))
 #define ELOQDS 1
 #endif
 
@@ -71,8 +71,15 @@
 #include "mongo/db/modules/eloq/store_handler/data_store_service_client.h"
 #include "mongo/db/modules/eloq/store_handler/eloq_data_store_service/data_store_service.h"
 #include "mongo/db/modules/eloq/store_handler/eloq_data_store_service/data_store_service_config.h"
-#include "mongo/db/modules/eloq/store_handler/eloq_data_store_service/rocksdb_cloud_data_store_factory.h"
-#include "mongo/db/modules/eloq/store_handler/eloq_data_store_service/rocksdb_config.h"
+#if (defined(ROCKSDB_CLOUD_FS_TYPE) &&                     \
+     (ROCKSDB_CLOUD_FS_TYPE == ROCKSDB_CLOUD_FS_TYPE_S3 || \
+      ROCKSDB_CLOUD_FS_TYPE == ROCKSDB_CLOUD_FS_TYPE_GCS))
+#include "store_handler/eloq_data_store_service/rocksdb_cloud_data_store_factory.h"
+#include "store_handler/eloq_data_store_service/rocksdb_config.h"
+#elif defined(DATA_STORE_TYPE_ELOQDSS_ROCKSDB)
+#include "store_handler/eloq_data_store_service/rocksdb_config.h"
+#include "store_handler/eloq_data_store_service/rocksdb_data_store_factory.h"
+#endif
 #else
 #endif
 
@@ -334,8 +341,8 @@ EloqKVEngine::EloqKVEngine(const std::string& path) : _dbPath(path) {
 #if defined(OPEN_LOG_SERVICE)
         _logServer = std::make_unique<txlog::LogServer>(nodeId, logServerPort, txlogPath, 1);
 #else
-        size_t rocksdb_sst_files_size_limit_val =
-            txlog::parse_size(eloq_rocksdb_sst_files_size_limit);
+        // size_t rocksdb_sst_files_size_limit_val =
+        //     txlog::parse_size(eloq_rocksdb_sst_files_size_limit);
         _logServer = std::make_unique<txlog::LogServer>(
             nodeId,
             logServerPort,
@@ -344,8 +351,9 @@ EloqKVEngine::EloqKVEngine(const std::string& path) : _dbPath(path) {
             txlogPath,
             0,
             eloqGlobalOptions.txlogGroupReplicaNum,
-            eloqGlobalOptions.logserverRocksDBScanThreadNum,
-            rocksdb_sst_files_size_limit_val
+            txlogRocksDBPath,
+            eloqGlobalOptions.txlogRocksDBScanThreads
+            // rocksdb_sst_files_size_limit_val
 
             // eloq_rocksdb_max_write_buffer_number,
             // eloq_rocksdb_max_background_jobs, rocksdb_target_file_size_base_val,
@@ -558,6 +566,14 @@ void EloqKVEngine::initDataStoreService() {
         fake_config_reader.GetBoolean("local", "enable_cache_replacement", false);
     auto ds_factory = std::make_unique<EloqDS::RocksDBCloudDataStoreFactory>(
         rocksdb_config, rocksdb_cloud_config, enable_cache_replacement_);
+#elif defined(DATA_STORE_TYPE_ELOQDSS_ROCKSDB)
+    // setup rocksdb data store
+    INIReader fake_config_reader(nullptr, 0);
+    EloqDS::RocksDBConfig rocksdb_config(fake_config_reader, _dbPath);
+    bool enable_cache_replacement_ =
+        fake_config_reader.GetBoolean("local", "enable_cache_replacement", false);
+    auto ds_factory = std::make_unique<EloqDS::RocksDBDataStoreFactory>(rocksdb_config,
+                                                                        enable_cache_replacement_);
 #endif
 
     Eloq::dataStoreService = std::make_unique<EloqDS::DataStoreService>(
@@ -575,6 +591,12 @@ void EloqKVEngine::initDataStoreService() {
                                                                   enable_cache_replacement_,
                                                                   shard_id,
                                                                   Eloq::dataStoreService.get());
+#elif defined(DATA_STORE_TYPE_ELOQDSS_ROCKSDB)
+        auto ds = std::make_unique<EloqDS::RocksDBDataStore>(rocksdb_config,
+                                                             (opt_bootstrap || is_single_node),
+                                                             enable_cache_replacement_,
+                                                             shard_id,
+                                                             Eloq::dataStoreService.get());
 #endif
         ds->Initialize();
 
