@@ -145,7 +145,7 @@ public:
                                                std::unique_ptr<Eloq::MongoKey> key,
                                                std::unique_ptr<Eloq::MongoRecord> record,
                                                txservice::OperationType operationType,
-                                               bool checkUnique = false);
+                                               bool checkUnique);
     [[nodiscard]] std::pair<bool, txservice::TxErrorCode> getKV(
         OperationContext* opCtx,
         const txservice::TableName& tableName,
@@ -160,6 +160,12 @@ public:
         uint64_t keySchemaVersion,
         bool isForWrite = false,
         bool readLocal = false);
+
+    [[nodiscard]] txservice::TxErrorCode batchGetKV(OperationContext* opCtx,
+                                                    const txservice::TableName& tableName,
+                                                    uint64_t keySchemaVersion,
+                                                    std::vector<txservice::ScanBatchTuple>& batch,
+                                                    bool isForWrite);
 
     void notifyReloadCache(OperationContext* opCtx);
 

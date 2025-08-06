@@ -61,6 +61,7 @@ namespace Eloq {
 extern std::unique_ptr<txservice::store::DataStoreHandler> storeHandler;
 }
 namespace mongo {
+extern AtomicInt32 internalInsertMaxBatchSize;
 thread_local std::random_device r;
 thread_local std::default_random_engine randomEngine{r()};
 thread_local std::uniform_int_distribution<int> uniformDist{1, 500};
@@ -765,7 +766,8 @@ void EloqRecordStore::deleteRecord(OperationContext* opCtx, const RecordId& id) 
                          keySchemaVersion,
                          std::move(mongoKey),
                          nullptr,
-                         txservice::OperationType::Delete);
+                         txservice::OperationType::Delete,
+                         false);
     uassertStatusOK(TxErrorCodeToMongoStatus(err));
 
     // remove record from creating index.
@@ -787,7 +789,8 @@ void EloqRecordStore::deleteRecord(OperationContext* opCtx, const RecordId& id) 
                                 keySchema->SchemaTs(),
                                 std::move(mongoKey),
                                 nullptr,
-                                txservice::OperationType::Delete);
+                                txservice::OperationType::Delete,
+                                false);
                 uassertStatusOK(TxErrorCodeToMongoStatus(err));
             }
         }
@@ -855,7 +858,8 @@ Status EloqRecordStore::updateRecord(OperationContext* opCtx,
                          pkeySchemaVersion,
                          std::move(mongoKey),
                          std::move(mongoRecord),
-                         txservice::OperationType::Update);
+                         txservice::OperationType::Update,
+                         false);
     if (err != txservice::TxErrorCode::NO_ERROR) {
         return TxErrorCodeToMongoStatus(err);
     }
@@ -898,7 +902,8 @@ Status EloqRecordStore::updateRecord(OperationContext* opCtx,
                             keySchema->SchemaTs(),
                             std::move(mongoKey),
                             std::move(mongoRecord),
-                            txservice::OperationType::Update);
+                            txservice::OperationType::Update,
+                            false);
             uassertStatusOK(TxErrorCodeToMongoStatus(err));
         }
     } catch (const mongo::DBException& e) {
@@ -1043,6 +1048,17 @@ void EloqRecordStore::waitForAllEarlierOplogWritesToBeVisible(OperationContext* 
     //
 }
 
+struct BatchReadEntry {
+    BatchReadEntry() : keyString(KeyString::kLatestVersion) {}
+    void resetToKey(const BSONObj& idObj) {
+        keyString.resetToKey(idObj, kIdOrdering);
+        mongoKey = std::make_unique<Eloq::MongoKey>(keyString);
+    }
+
+    KeyString keyString;
+    std::unique_ptr<Eloq::MongoKey> mongoKey;
+    Eloq::MongoRecord mongoRecord;
+};
 
 Status EloqRecordStore::_insertRecords(OperationContext* opCtx,
                                        Record* records,
@@ -1066,16 +1082,13 @@ Status EloqRecordStore::_insertRecords(OperationContext* opCtx,
         return {ErrorCodes::BadValue, "object to insert exceeds cappedMaxSize"};
     }
 
-    auto ru = EloqRecoveryUnit::get(opCtx);
-    MONGO_LOG(1) << "Insert into a Data Table.";
-
-    const EloqRecoveryUnit::DiscoveredTable& table = ru->discoveredTable(_tableName);
-    uint64_t pkeySchemaVersion = table._schema->KeySchema()->SchemaTs();
-
+    const size_t maxBatchSize = internalInsertMaxBatchSize.load();
+    auto batchEntries = std::make_unique<BatchReadEntry[]>(maxBatchSize);
+    std::vector<txservice::ScanBatchTuple> batchTuples;
+    batchTuples.reserve(nRecords);
     for (size_t i = 0; i < nRecords; i++) {
         Record& record = records[i];
         BSONObj obj{record.data.data()};
-
         const BSONObj idObj = getIdBSONObjWithoutFieldName(obj);
         MONGO_LOG(1) << idObj.jsonString();
         Status s = checkKeySize(idObj, "RecordStore");
@@ -1083,44 +1096,62 @@ Status EloqRecordStore::_insertRecords(OperationContext* opCtx,
             return s;
         }
 
-        const KeyString ks{KeyString::kLatestVersion, idObj, kIdOrdering};
-        record.id = RecordId{ks.getBuffer(), ks.getSize()};
-        MONGO_LOG(1) << "record id: " << record.id.toString() << ". data: " << obj.jsonString();
-        auto mongoKey = std::make_unique<Eloq::MongoKey>(ks);
-        auto mongoRecord = std::make_unique<Eloq::MongoRecord>();
+        BatchReadEntry& entry = batchEntries[i];
+        entry.resetToKey(idObj);
+        record.id = RecordId{entry.keyString.getBuffer(), entry.keyString.getSize()};
+        MONGO_LOG(1) << ">> Insert with id: " << record.id.getStringView()
+                     << ", record: " << record.data.toBson();
+        batchTuples.emplace_back(txservice::TxKey(entry.mongoKey.get()), &entry.mongoRecord);
+    }
 
-        auto [exists, err] = ru->getKV(
-            opCtx, _tableName, pkeySchemaVersion, mongoKey.get(), mongoRecord.get(), true);
-        if (err != txservice::TxErrorCode::NO_ERROR) {
-            return TxErrorCodeToMongoStatus(err);
-        }
-        if (exists) {
+    auto ru = EloqRecoveryUnit::get(opCtx);
+    MONGO_LOG(1) << "Insert into a Data Table.";
+    const EloqRecoveryUnit::DiscoveredTable& table = ru->discoveredTable(_tableName);
+    uint64_t pkeySchemaVersion = table._schema->KeySchema()->SchemaTs();
+    txservice::TxErrorCode err =
+        ru->batchGetKV(opCtx, _tableName, pkeySchemaVersion, batchTuples, true);
+    if (err != txservice::TxErrorCode::NO_ERROR) {
+        return TxErrorCodeToMongoStatus(err);
+    }
+
+    for (size_t i = 0; i < nRecords; i++) {
+        const txservice::ScanBatchTuple& tuple = batchTuples[i];
+        if (tuple.status_ == txservice::RecordStatus::Normal) {
             return {ErrorCodes::DuplicateKey, "DuplicateKey"};
+        } else {
+            invariant(tuple.status_ == txservice::RecordStatus::Deleted);
         }
 
-        mongoRecord->SetEncodedBlob(reinterpret_cast<const unsigned char*>(record.data.data()),
-                                    record.data.size());
+        std::unique_ptr<Eloq::MongoKey>& mongoKey = batchEntries[i].mongoKey;
+        std::unique_ptr<Eloq::MongoRecord> mongoRecord = std::make_unique<Eloq::MongoRecord>();
+        const RecordData& data = records[i].data;
+        mongoRecord->SetEncodedBlob(reinterpret_cast<const unsigned char*>(data.data()),
+                                    data.size());
+        const KeyString& ks = batchEntries[i].keyString;
         if (const auto& typeBits = ks.getTypeBits(); !typeBits.isAllZeros()) {
             mongoRecord->SetUnpackInfo(typeBits.getBuffer(), typeBits.getSize());
         }
-
+        bool checkUnique = true;
         err = ru->setKV(_tableName,
                         pkeySchemaVersion,
                         std::move(mongoKey),
                         std::move(mongoRecord),
-                        txservice::OperationType::Insert);
+                        txservice::OperationType::Insert,
+                        checkUnique);
         if (err != txservice::TxErrorCode::NO_ERROR) {
             return TxErrorCodeToMongoStatus(err);
         }
 
         // For creating index.
         try {
+            BSONObj obj(data.data());
             for (const EloqRecoveryUnit::SecondaryIndex* index : table._creatingIndexes) {
                 const txservice::TableName& indexName = index->first;
                 const auto* keySchema =
                     static_cast<const Eloq::MongoKeySchema*>(index->second.sk_schema_.get());
 
-                if (keySchema->Unique()) {
+                bool unique = keySchema->Unique();
+                if (unique) {
                     uasserted(ErrorCodes::ConflictingOperationInProgress,
                               str::stream()
                                   << "A conflict create-unique-index transaction is running.");
@@ -1144,18 +1175,20 @@ Status EloqRecordStore::_insertRecords(OperationContext* opCtx,
 
                 const BSONObj& skObj = *keys.cbegin();
                 KeyString keyString(
-                    KeyString::kLatestVersion, skObj, keySchema->Ordering(), record.id);
+                    KeyString::kLatestVersion, skObj, keySchema->Ordering(), records[i].id);
                 auto mongoKey =
                     std::make_unique<Eloq::MongoKey>(keyString.getBuffer(), keyString.getSize());
                 auto mongoRecord = std::make_unique<Eloq::MongoRecord>();
                 if (const auto& typeBits = keyString.getTypeBits(); !typeBits.isAllZeros()) {
                     mongoRecord->SetUnpackInfo(typeBits.getBuffer(), typeBits.getSize());
                 }
+                bool checkUnique = unique;
                 err = ru->setKV(indexName,
                                 keySchema->SchemaTs(),
                                 std::move(mongoKey),
                                 std::move(mongoRecord),
-                                txservice::OperationType::Insert);
+                                txservice::OperationType::Insert,
+                                checkUnique);
                 uassertStatusOK(TxErrorCodeToMongoStatus(err));
             }
         } catch (const mongo::DBException& e) {
