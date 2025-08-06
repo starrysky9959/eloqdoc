@@ -87,8 +87,6 @@ cd eloqdoc
 MONGO_SRC=$PWD
 cd $MONGO_SRC && git submodule update --recursive
 ELOQ_ENGINE_SRC=$MONGO_SRC/src/mongo/db/modules/eloq
-cd $ELOQ_ENGINE_SRC/eloq_log_service && git pull origin main
-cd $ELOQ_ENGINE_SRC/tx_service/raft_host_manager && git pull origin main
 cd $MONGO_SRC
 copy_libraries() {
     local executable=$1
