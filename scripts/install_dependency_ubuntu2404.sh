@@ -157,7 +157,7 @@ if [ "$SKIP_ELOQ_COMMON" = false ]; then
         git clone https://github.com/eloqdata/mimalloc.git mimalloc
     fi
     cd mimalloc && \
-    git checkout monograph-v2.1.2 && \
+    git checkout eloq-v2.1.2 && \
     mkdir -p bld && cd bld && \
     cmake .. && \
     make -j$COMPILE_JOBS && \
@@ -326,7 +326,7 @@ if [ "$SKIP_ELOQ_COMMON" = false ]; then
     # ------------- RocksDB-Cloud installation -------------
     log_info "Installing rocksdb-cloud"
     cd $WORKSPACE
-    git clone git@github.com:eloqdata/rocksdb-cloud.git && \
+    git clone https://github.com/eloqdata/rocksdb-cloud.git && \
     cd rocksdb-cloud && \
     git checkout main && \
     LIBNAME=librocksdb-cloud-aws USE_RTTI=1 USE_AWS=1 ROCKSDB_DISABLE_TCMALLOC=1 ROCKSDB_DISABLE_JEMALLOC=1 make shared_lib -j8 && \
