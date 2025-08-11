@@ -205,8 +205,9 @@ void makeCollection(OperationContext* opCtx, const NamespaceString& ns) {
     writeConflictRetry(opCtx, "implicit collection creation", ns.ns(), [&opCtx, &ns] {
         AutoGetOrCreateDb db(opCtx, ns.db(), MODE_X);
         // assertCanWrite_inlock(opCtx, ns);
-        // EloqDoc release catalog lock after executing DDL. Acquire catalog lock again.
-        while (!db.getDb()->getCollection(opCtx, ns)) {  // someone else may have beat us to it.
+        bool isForWrite = true;
+        if (!db.getDb()->getCollection(
+                opCtx, ns, isForWrite)) {  // someone else may have beat us to it.
             uassertStatusOK(userAllowedCreateNS(ns.db(), ns.coll()));
             WriteUnitOfWork wuow(opCtx);
             CollectionOptions collectionOptions;
@@ -383,23 +384,54 @@ bool insertBatchAndHandleErrors(OperationContext* opCtx,
 
     boost::optional<AutoGetCollection> collection;
     auto acquireCollection = [&] {
-        while (true) {
-            if (MONGO_FAIL_POINT(hangDuringBatchInsert)) {
-                log() << "batch insert - hangDuringBatchInsert fail point enabled. Blocking until "
-                         "fail point is disabled.";
-                MONGO_FAIL_POINT_PAUSE_WHILE_SET(hangDuringBatchInsert);
+        {
+            // Stash current RecoveryUnit.
+            RecoveryUnit* ru = opCtx->releaseRecoveryUnit();
+            WriteUnitOfWork::RecoveryUnitState ruState = opCtx->getRecoveryUnitState();
+            auto guard = MakeGuard([opCtx, ru, ruState] { opCtx->setRecoveryUnit(ru, ruState); });
+
+            while (true) {
+                if (MONGO_FAIL_POINT(hangDuringBatchInsert)) {
+                    log() << "batch insert - hangDuringBatchInsert fail point enabled. Blocking "
+                             "until "
+                             "fail point is disabled.";
+                    MONGO_FAIL_POINT_PAUSE_WHILE_SET(hangDuringBatchInsert);
+                }
+
+                if (MONGO_FAIL_POINT(failAllInserts)) {
+                    uasserted(ErrorCodes::InternalError, "failAllInserts failpoint active!");
+                }
+
+                // In EloqDoc, create collection operation commits transaction.
+                RecoveryUnit* ru =
+                    opCtx->getServiceContext()->getStorageEngine()->newRecoveryUnit();
+                opCtx->setRecoveryUnit(ru, WriteUnitOfWork::RecoveryUnitState::kNotInUnitOfWork);
+                WriteUnitOfWork wuow(opCtx);
+
+                collection.emplace(opCtx, wholeOp.getNamespace(), MODE_IX);
+                if (collection->getCollection())
+                    break;
+
+                collection.reset();  // unlock.
+                try {
+                    makeCollection(opCtx, wholeOp.getNamespace());
+                    wuow.commit();
+                    break;
+                } catch (const mongo::DBException& e) {
+                    if (e.code() == ErrorCodes::NamespaceExists) {
+                        break;
+                    } else if (e.code() == ErrorCodes::WriteConflict) {
+                        continue;
+                    } else {
+                        throw;
+                    }
+                }
             }
+        }
 
-            if (MONGO_FAIL_POINT(failAllInserts)) {
-                uasserted(ErrorCodes::InternalError, "failAllInserts failpoint active!");
-            }
-
-            collection.emplace(opCtx, wholeOp.getNamespace(), MODE_IX);
-            if (collection->getCollection())
-                break;
-
-            collection.reset();  // unlock.
-            makeCollection(opCtx, wholeOp.getNamespace());
+        collection.emplace(opCtx, wholeOp.getNamespace(), MODE_IX);
+        if (!collection->getCollection()) {
+            throw WriteConflictException();
         }
 
         curOp.raiseDbProfileLevel(collection->getDb()->getProfilingLevel());
@@ -638,20 +670,52 @@ static SingleWriteResult performSingleUpdateOp(OperationContext* opCtx,
     uassertStatusOK(parsedUpdate.parseRequest());
 
     boost::optional<AutoGetCollection> collection;
-    while (true) {
-        if (MONGO_FAIL_POINT(failAllUpdates)) {
-            uasserted(ErrorCodes::InternalError, "failAllUpdates failpoint active!");
+    {
+        // Stash current RecoveryUnit.
+        RecoveryUnit* ru = opCtx->releaseRecoveryUnit();
+        WriteUnitOfWork::RecoveryUnitState ruState = opCtx->getRecoveryUnitState();
+        auto guard = MakeGuard([opCtx, ru, ruState] { opCtx->setRecoveryUnit(ru, ruState); });
+
+        while (true) {
+            if (MONGO_FAIL_POINT(failAllUpdates)) {
+                uasserted(ErrorCodes::InternalError, "failAllUpdates failpoint active!");
+            }
+
+            // In EloqDoc, create collection operation commits transaction.
+            RecoveryUnit* ru = opCtx->getServiceContext()->getStorageEngine()->newRecoveryUnit();
+            opCtx->setRecoveryUnit(ru, WriteUnitOfWork::RecoveryUnitState::kNotInUnitOfWork);
+            WriteUnitOfWork wuow(opCtx);
+
+            collection.emplace(opCtx,
+                               ns,
+                               MODE_IX,  // DB is always IX, even if collection is X.
+                               MODE_IX);
+            if (collection->getCollection() || !op.getUpsert())
+                break;
+
+            collection.reset();  // unlock.
+            try {
+                makeCollection(opCtx, ns);
+                wuow.commit();
+                break;
+            } catch (const mongo::DBException& e) {
+                if (e.code() == ErrorCodes::NamespaceExists) {
+                    break;
+                } else if (e.code() == ErrorCodes::WriteConflict) {
+                    continue;
+                } else {
+                    throw;
+                }
+            }
         }
+    }
 
-        collection.emplace(opCtx,
-                           ns,
-                           MODE_IX,  // DB is always IX, even if collection is X.
-                           MODE_IX);
-        if (collection->getCollection() || !op.getUpsert())
-            break;
-
-        collection.reset();  // unlock.
-        makeCollection(opCtx, ns);
+    collection.emplace(opCtx,
+                       ns,
+                       MODE_IX,  // DB is always IX, even if collection is X.
+                       MODE_IX);
+    if (!collection->getCollection() && op.getUpsert()) {
+        throw WriteConflictException();
     }
 
     if (collection->getDb()) {

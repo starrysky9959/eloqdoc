@@ -63,7 +63,7 @@ extern std::unique_ptr<txservice::store::DataStoreHandler> storeHandler;
 namespace mongo {
 thread_local std::random_device r;
 thread_local std::default_random_engine randomEngine{r()};
-thread_local std::uniform_int_distribution<int> uniformDist{1, 500};
+thread_local std::uniform_int_distribution<int> uniformDist{1, 100};
 
 class EloqCatalogRecordStoreCursor : public SeekableRecordCursor {
 public:

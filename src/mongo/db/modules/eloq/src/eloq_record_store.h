@@ -170,7 +170,7 @@ public:
     void getAllCollections(std::vector<std::string>& collections) const override;
 
 private:
-    static constexpr uint16_t kMaxRetryLimit{100};
+    static constexpr uint16_t kMaxRetryLimit{10};
 };
 
 // every RecordStore is corresponding to a table in txservice
