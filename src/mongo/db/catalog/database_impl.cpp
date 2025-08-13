@@ -1447,12 +1447,14 @@ void DatabaseImpl::dropDatabase(OperationContext* opCtx, Database* db) {
         Top::get(serviceContext).collectionDropped(coll->ns().ns(), true);
     }
 
-    DatabaseHolder::getDatabaseHolder().close(opCtx, name, "database dropped");
+    // DatabaseHolder::getDatabaseHolder().close(opCtx, name, "database dropped");
 
     auto const storageEngine = serviceContext->getStorageEngine();
     writeConflictRetry(opCtx, "dropDatabase", name, [&] {
         storageEngine->dropDatabase(opCtx, name).transitional_ignore();
     });
+
+    DatabaseHolder::getDatabaseHolder().close(opCtx, name, "database dropped");
 }
 
 StatusWith<NamespaceString> DatabaseImpl::makeUniqueCollectionNamespace(

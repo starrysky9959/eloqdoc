@@ -427,7 +427,12 @@ Status KVDatabaseCatalogEntryBase::renameCollection(OperationContext* opCtx,
 Status KVDatabaseCatalogEntryBase::dropCollection(OperationContext* opCtx, StringData ns) {
     invariant(opCtx->lockState()->isDbLockedForMode(name(), MODE_X));
 
-    _collections.erase(ns.toString());
+    // Don't clear the _collections, because the collections may be used by other request.
+    // The collection also should not be removed after call
+    // "_engine->getCatalog()->dropCollection(opCtx, ns)". Because there is no lock on
+    // (txservice)catalog and the collection may be the new-created by another transcation.
+
+    // _collections.erase(ns.toString());
 
     Status status = _engine->getCatalog()->dropCollection(opCtx, ns);
     // always Status::OK();

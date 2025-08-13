@@ -84,6 +84,8 @@ void killAllExpiredTransactions(OperationContext* opCtx) {
             std::mutex mux;
             std::condition_variable cv;
 
+            auto client = Client::releaseCurrent();
+
             std::function<void()> yieldFunc, resumeFunc, longResumeFunc;
             opCtx->setCoroutineFunctors(
                 CoroutineFunctors{&yieldFunc, &resumeFunc, &longResumeFunc});
@@ -91,49 +93,57 @@ void killAllExpiredTransactions(OperationContext* opCtx) {
                 getGlobalServiceContext()->getServiceEntryPoint()->getServiceExecutor();
 
             boost::context::continuation source;
-            std::function<void()> resumeTask = [&source] {
+            std::function<void()> resumeTask = [&source, &client] {
                 log() << "abortArbitraryTransactionIfExpired call resume";
+                Client::setCurrent(std::move(client));
                 source = source.resume();
             };
             resumeFunc =
                 serviceExecutor->coroutineResumeFunctor(session->ThreadGroupId(), resumeTask);
 
-            auto task = [&finished, &mux, &cv, &source, &yieldFunc, opCtx, session] {
-                source = boost::context::callcc([&finished, &mux, &cv, &yieldFunc, opCtx, session](
-                                                    boost::context::continuation&& sink) {
-                    yieldFunc = [&sink]() {
-                        log() << "abortArbitraryTransactionIfExpired call yield";
-                        sink = sink.resume();
-                    };
+            auto task = [&finished, &mux, &cv, &source, &yieldFunc, opCtx, session, &client] {
+                Client::setCurrent(std::move(client));
 
-                    std::unique_lock lk(mux);
-                    try {
-                        session->abortArbitraryTransactionIfExpired(opCtx);
-                    } catch (const DBException& ex) {
-                        const Status& status = ex.toStatus();
-                        std::string errmsg = str::stream() << "May have failed to abort expired "
-                                                              "transaction with session id (lsid) '"
-                                                           << session->getSessionId() << "'."
-                                                           << " Caused by: " << status;
+                source = boost::context::callcc(
+                    [&finished, &mux, &cv, &yieldFunc, opCtx, session, &client](
+                        boost::context::continuation&& sink) {
+                        yieldFunc = [&sink, &client]() {
+                            log() << "abortArbitraryTransactionIfExpired call yield";
+                            client = Client::releaseCurrent();
+                            sink = sink.resume();
+                        };
 
-                        // LockTimeout errors are expected if we are unable to acquire an IS lock to
-                        // clean up transaction cursors. The transaction abort (and lock resource
-                        // release) should have succeeded despite failing to clean up cursors. The
-                        // cursors will eventually be cleaned up by the cursor manager. We'll log
-                        // such errors at a higher log level for diagnostic purposes in case
-                        // something gets stuck.
-                        if (ErrorCodes::isShutdownError(status.code()) ||
-                            status == ErrorCodes::LockTimeout) {
-                            LOG(1) << errmsg;
-                        } else {
-                            warning() << errmsg;
+                        std::unique_lock lk(mux);
+                        try {
+                            session->abortArbitraryTransactionIfExpired(opCtx);
+                        } catch (const DBException& ex) {
+                            const Status& status = ex.toStatus();
+                            std::string errmsg = str::stream()
+                                << "May have failed to abort expired "
+                                   "transaction with session id (lsid) '"
+                                << session->getSessionId() << "'."
+                                << " Caused by: " << status;
+
+                            // LockTimeout errors are expected if we are unable to acquire
+                            // an IS lock to clean up transaction cursors. The transaction
+                            // abort (and lock resource release) should have succeeded
+                            // despite failing to clean up cursors. The cursors will
+                            // eventually be cleaned up by the cursor manager. We'll log
+                            // such errors at a higher log level for diagnostic purposes in
+                            // case something gets stuck.
+                            if (ErrorCodes::isShutdownError(status.code()) ||
+                                status == ErrorCodes::LockTimeout) {
+                                LOG(1) << errmsg;
+                            } else {
+                                warning() << errmsg;
+                            }
                         }
-                    }
 
-                    finished = true;
-                    cv.notify_one();
-                    return std::move(sink);
-                });
+                        finished = true;
+                        client = Client::releaseCurrent();
+                        cv.notify_one();
+                        return std::move(sink);
+                    });
             };
 
             Status status =
@@ -144,6 +154,7 @@ void killAllExpiredTransactions(OperationContext* opCtx) {
             if (status.isOK()) {
                 std::unique_lock lk(mux);
                 cv.wait(lk, [&finished]() { return finished; });
+                Client::setCurrent(std::move(client));
             }
         });
 
