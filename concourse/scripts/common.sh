@@ -10,6 +10,9 @@ MINIO_ENDPOINT="http://172.17.0.1:9000"
 MINIO_ACCESS_KEY="35cxOCh64Ef1Mk5U1bgU"
 MINIO_SECRET_KEY="M6oJQWdFCr27TUUS40wS6POQzbKhbFTHG9bRayoC"
 
+# Setup Minio mc Client command
+mc alias set minio_server ${MINIO_ENDPOINT} ${MINIO_ACCESS_KEY} ${MINIO_SECRET_KEY}
+
 # Make coredump dir writable.
 if [ ! -d "/var/crash" ]; then sudo mkdir -p /var/crash; fi
 sudo chmod 777 /var/crash
@@ -34,13 +37,7 @@ cleanup_all_buckets() {
       local full_bucket_name="${bucket_prefix}${bucket_name}"
       
       echo "Cleaning buckets: $full_bucket_name"
-      
-      # pwd is mongo/
-      python3 concourse/scripts/cleanup_minio_bucket.py \
-            --minio_endpoint="${MINIO_ENDPOINT}" \
-            --minio_access_key="${MINIO_ACCESS_KEY}" \
-            --minio_secret_key="${MINIO_SECRET_KEY}" \
-            --bucket_names="${full_bucket_name}"
+      mc rb minio_server/${full_bucket_name} --force
 }
 
 compile_and_install() {
@@ -159,8 +156,8 @@ launch_mongod() {
             --config ./concourse/scripts/store_rocksdb_cloud.yaml \
             --eloqRocksdbCloudBucketName="$bucket_name" \
             --eloqRocksdbCloudBucketPrefix="$bucket_prefix" \
-            --txlogRocksDBCloudBucketName="$bucket_name" \
-            --txlogRocksDBCloudBucketPrefix="$bucket_prefix" \
+            --eloqTxlogRocksDBCloudBucketName="$bucket_name" \
+            --eloqTxlogRocksDBCloudBucketPrefix="$bucket_prefix" \
             &>$PREFIX/log/mongod.out &
 }
 
@@ -176,14 +173,14 @@ launch_mongod_fast() {
       export LD_PRELOAD=/usr/local/lib/libmimalloc.so
       mkdir -p "$PREFIX/log" "$PREFIX/data"
       sed -i "s|rocksdbCloudEndpointUrl: \"http://[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+:[0-9]\+\"|rocksdbCloudEndpointUrl: \"${MINIO_ENDPOINT}\"|g" /home/eloq/workspace/mongo/concourse/scripts/store_rocksdb_cloud.yaml
-      sed -i "s|eloqTxlogRocksDBCloudEndpointUrl: \"http://[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+:[0-9]\+\"|eloqTxlogRocksDBCloudEndpointUrl: \"${MINIO_ENDPOINT}\"|g" /home/eloq/workspace/mongo/concourse/scripts/store_rocksdb_cloud.yaml
+      sed -i "s|txlogRocksDBCloudEndpointUrl: \"http://[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+:[0-9]\+\"|txlogRocksDBCloudEndpointUrl: \"${MINIO_ENDPOINT}\"|g" /home/eloq/workspace/mongo/concourse/scripts/store_rocksdb_cloud.yaml
       nohup $PREFIX/bin/mongod \
             --config ./concourse/scripts/store_rocksdb_cloud.yaml \
             --eloqSkipRedoLog=1 \
             --eloqRocksdbCloudBucketName="$bucket_name" \
             --eloqRocksdbCloudBucketPrefix="$bucket_prefix" \
-            --txlogRocksDBCloudBucketName="$bucket_name" \
-            --txlogRocksDBCloudBucketPrefix="$bucket_prefix" \
+            --eloqTxlogRocksDBCloudBucketName="$bucket_name" \
+            --eloqTxlogRocksDBCloudBucketPrefix="$bucket_prefix" \
             &>$PREFIX/log/mongod.out &
 }
 
