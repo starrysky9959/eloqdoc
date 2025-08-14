@@ -16,13 +16,6 @@ fi
 current_user=$(whoami)
 sudo chown -R $current_user $PWD
 
-# make coredump dir writable for debugging
-if [ ! -d "/var/crash" ]; then sudo mkdir -p /var/crash; fi
-sudo chmod 777 /var/crash
-
-ulimit -c unlimited
-echo '/var/crash/core.%t.%e.%p' | sudo tee /proc/sys/kernel/core_pattern
-
 # Ensure workspace ownership
 sudo chown -R $current_user $HOME/workspace 2>/dev/null || true
 
@@ -89,7 +82,7 @@ arm64 | aarch64) ARCH=arm64 ;;
 esac
 
 # Checkout to the latest tag if TAGGED is set, aligning submodules to release branches
-if [ -n "${TAGGED:-}" ]; then
+if [ "${TAGGED}" = "true" ]; then
     TAGGED=$(git tag --sort=-v:refname | head -n 1)
     if [ -z "${TAGGED}" ]; then
         echo "No tags found but TAGGED requested"
@@ -267,8 +260,6 @@ cp ${ELOQDOC_SRC}/concourse/scripts/mongod.conf ${DEST_DIR}/etc
 cd $HOME
 tar -czvf eloqdoc.tar.gz -C $DEST_DIR .
 
-BUILD_TYPE_LOWER=$(echo ${BUILD_TYPE:-RelWithDebInfo} | tr '[:upper:]' '[:lower:]')
-
 # Tarball naming and upload (align with eloqkv)
 if [ -n "${TAGGED:-}" ]; then
     DOC_TARBALL="eloqdoc-${TAGGED}-${OS_ID}-${ARCH}.tar.gz"
@@ -277,7 +268,6 @@ if [ -n "${TAGGED:-}" ]; then
     SQL="INSERT INTO doc_release VALUES ('eloqdoc', '${ARCH}', '${OS_ID}', '${DATA_STORE_ID}', $(echo ${TAGGED} | tr '.' ',')) ON CONFLICT DO NOTHING"
     psql postgresql://${PG_CONN}/eloq_release?sslmode=require -c "${SQL}" || true
 else
-    OUT_NAME=${OUT_NAME:-${BUILD_TYPE_LOWER}}
     DOC_TARBALL="eloqdoc-${OUT_NAME}-${OS_ID}-${ARCH}.tar.gz"
 fi
 aws s3 cp eloqdoc.tar.gz ${S3_PREFIX}/${DATA_STORE_ID}/${DOC_TARBALL}
