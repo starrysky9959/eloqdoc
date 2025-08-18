@@ -34,8 +34,13 @@ p = startParallelShell('for( i = 0; i < 100; ++i ) {                            
                        '}                                                         ');
 
 for (i = 0; i < 100; ++i) {
-    count = t.distinct('c', {$or: [{a: {$gte: 0}, d: 0}, {b: {$gte: 0}}]}).length;
-    assert.gt(count, 100);
+    try {
+        count = t.distinct('c', {$or: [{a: {$gte: 0}, d: 0}, {b: {$gte: 0}}]}).length;
+        assert.gt(count, 100);
+    } catch(ex) {
+        // DEAD_LOCK_ABORT also map to mongo error WriteConflict.
+        assert.eq(ex.code, ErrorCodes.WriteConflict);
+    }
 }
 
 p();
