@@ -103,13 +103,13 @@ int64_t generateSeed(const std::string& desc) {
 Client::Client(std::string desc,
                ServiceContext* serviceContext,
                transport::SessionHandle session,
-               ServiceStateMachine* stm)
+               const CoroutineFunctors& coro)
     : _serviceContext(serviceContext),
       _session(std::move(session)),
       _desc(std::move(desc)),
       _connectionId(_session ? _session->id() : 0),
       _prng(generateSeed(_desc)),
-      _stm(stm) {}
+      _coro(coro) {}
 
 void Client::reportState(BSONObjBuilder& builder) {
     builder.append("desc", desc());
