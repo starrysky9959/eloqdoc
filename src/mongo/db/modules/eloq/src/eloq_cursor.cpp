@@ -188,11 +188,11 @@ txservice::TxErrorCode EloqCursor::_fetchBatchTuples() {
     _txm->Execute(&scanBatchTxReq);
     scanBatchTxReq.Wait();
     if (scanBatchTxReq.IsError()) {
-        MONGO_LOG(1) << "EloqCursor::nextBatchTuple ScanBatchTxRequest fail"
+        MONGO_LOG(1) << "EloqCursor::_fetchBatchTuples ScanBatchTxRequest fail"
                      << ". ErrorCode: " << scanBatchTxReq.ErrorCode()
                      << ". ErrorMsg: " << scanBatchTxReq.ErrorMsg();
     } else {
-        MONGO_LOG(1) << "EloqCursor::nextBatchTuple ScanBatchTxRequest succeed. "
+        MONGO_LOG(1) << "EloqCursor::_fetchBatchTuples ScanBatchTxRequest succeed. "
                      << _scanOpenTxReq.tab_name_->StringView()
                      << ", tuples: " << _scanBatchVector.size();
         _isLastScanBatch = scanBatchTxReq.Result();
