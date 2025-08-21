@@ -18,6 +18,7 @@
 
 #define MONGO_LOG_DEFAULT_COMPONENT ::mongo::logger::LogComponent::kStorage
 
+#include <cstddef>
 #include <memory>
 #include <mutex>
 #include <stdexcept>
@@ -547,6 +548,8 @@ void EloqKVEngine::initDataStoreService() {
         eloqGlobalOptions.txlogRocksDBCloudReadyTimeout * 1000 * 1000;
     rocksdb_cloud_config.db_file_deletion_delay_ =
         eloqGlobalOptions.txlogRocksDBCloudFileDeletionDelay;
+    rocksdb_cloud_config.purger_periodicity_millis_ =
+        static_cast<size_t>(eloqGlobalOptions.rocksdbCloudPurgerPeriodicitySecs) * 1000;
 
     bool enable_cache_replacement_ =
         fake_config_reader.GetBoolean("local", "enable_cache_replacement", false);

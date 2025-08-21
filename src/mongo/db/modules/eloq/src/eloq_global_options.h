@@ -112,6 +112,7 @@ public:
     std::string rocksdbSstFilesSizeLimit;
     uint32_t rocksdbCloudReadyTimeout{0};
     uint32_t rocksdbCloudFileDeletionDelay{0};
+    uint32_t rocksdbCloudPurgerPeriodicitySecs{10 * 60};  // default 10 minutes
     uint32_t rocksdbMaxBackgroundJobs{4};
     uint32_t rocksdbMaxSubCompactions{1};  // no subcompactions
 
