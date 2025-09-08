@@ -101,21 +101,16 @@ if [ -z "${DATA_STORE_TYPE:-}" ]; then
 fi
 
 # Validate and normalize DATA_STORE_TYPE and derive DATA_STORE_ID
-case "${DATA_STORE_TYPE}" in
-  ELOQDSS_ROCKSDB_CLOUD_S3)
-    DATA_STORE_ID="rocks_s3"
-    ;;
-  ELOQDSS_ROCKSDB_CLOUD_GCS)
-    DATA_STORE_ID="rocks_gcs"
-    ;;
-  ELOQDSS_ROCKSDB)
-    DATA_STORE_ID="eloqdss_rocksdb"
-    ;;
-  *)
-    echo "Unsupported DATA_STORE_TYPE: ${DATA_STORE_TYPE}. Supported: ELOQDSS_ROCKSDB_CLOUD_S3, ELOQDSS_ROCKSDB_CLOUD_GCS, ELOQDSS_ROCKSDB"
-    exit 1
-    ;;
-esac
+if [ "${DATA_STORE_TYPE}" = "ELOQDSS_ROCKSDB_CLOUD_S3" ]; then
+  DATA_STORE_ID="rocks_s3"
+elif [ "${DATA_STORE_TYPE}" = "ELOQDSS_ROCKSDB_CLOUD_GCS" ]; then
+  DATA_STORE_ID="rocks_gcs"
+elif [ "${DATA_STORE_TYPE}" = "ELOQDSS_ROCKSDB" ]; then
+  DATA_STORE_ID="eloqdss_rocksdb"
+else
+  echo "Unsupported DATA_STORE_TYPE: ${DATA_STORE_TYPE}. Supported: ELOQDSS_ROCKSDB_CLOUD_S3, ELOQDSS_ROCKSDB_CLOUD_GCS, ELOQDSS_ROCKSDB"
+  exit 1
+fi
 
 if [ "${ASAN:-OFF}" = "ON" ]; then
     export ASAN_OPTIONS=abort_on_error=1:detect_container_overflow=0:leak_check_at_exit=0
@@ -124,6 +119,7 @@ fi
 # init destination directory
 DEST_DIR="${HOME}/EloqDoc"
 mkdir -p ${DEST_DIR}/{bin,lib,conf,etc}
+export DEST_DIR
 
 # Define and write LICENSE
 LICENSE_CONTENT=$(cat <<EOF
@@ -187,33 +183,31 @@ pyenv local 2.7.18
 export OPEN_LOG_SERVICE=0 FORK_HM_PROCESS=1
 
 # Configure and build engine via CMake
-# Extra cmake args for log service RocksDB cloud backend selection
-CMAKE_EXTRA_ARGS=""
-if [ "${DATA_STORE_TYPE:-}" = "ELOQDSS_ROCKSDB_CLOUD_S3" ]; then
-  CMAKE_EXTRA_ARGS="${CMAKE_EXTRA_ARGS} -DWITH_ROCKSDB_CLOUD=S3"
+# Align WITH_ROCKSDB_CLOUD env with DATA_STORE_TYPE
+if [ "${DATA_STORE_TYPE}" = "ELOQDSS_ROCKSDB_CLOUD_S3" ]; then
   export WITH_ROCKSDB_CLOUD=S3
-elif [ "${DATA_STORE_TYPE:-}" = "ELOQDSS_ROCKSDB_CLOUD_GCS" ]; then
-  CMAKE_EXTRA_ARGS="${CMAKE_EXTRA_ARGS} -DWITH_ROCKSDB_CLOUD=GCS"
+elif [ "${DATA_STORE_TYPE}" = "ELOQDSS_ROCKSDB_CLOUD_GCS" ]; then
   export WITH_ROCKSDB_CLOUD=GCS
 else
-  CMAKE_EXTRA_ARGS="${CMAKE_EXTRA_ARGS} -DWITH_ROCKSDB_CLOUD=OFF"
-  export WITH_ROCKSDB_CLOUD=0
+  unset WITH_ROCKSDB_CLOUD
 fi
 
 cmake -G "Unix Makefiles" \
       -S $ELOQDOC_SRC/src/mongo/db/modules/eloq \
       -B $ELOQDOC_SRC/src/mongo/db/modules/eloq/build \
+      -DCMAKE_EXPORT_COMPILE_COMMANDS=1 \
       -DCMAKE_INSTALL_PREFIX=$DEST_DIR \
       -DCMAKE_CXX_STANDARD=17 \
-      -DCMAKE_BUILD_TYPE=${BUILD_TYPE:-RelWithDebInfo} \
+      -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
+      -DCOROUTINE_ENABLED=ON \
       -DEXT_TX_PROC_ENABLED=ON \
       -DSTATISTICS=ON \
       -DUSE_ASAN=${ASAN:-OFF} \
-      -DWITH_DATA_STORE=${DATA_STORE_TYPE:-ELOQDSS_ROCKSDB_CLOUD_S3} \
+      -DWITH_DATA_STORE=${DATA_STORE_TYPE} \
       -DFORK_HM_PROCESS=ON \
       -DOPEN_LOG_SERVICE=OFF \
-      ${CMAKE_EXTRA_ARGS}
-cmake --build $ELOQDOC_SRC/src/mongo/db/modules/eloq/build -j${NCORE:-4}
+      -DWITH_ROCKSDB_CLOUD=$WITH_ROCKSDB_CLOUD
+cmake --build $ELOQDOC_SRC/src/mongo/db/modules/eloq/build -j6
 cmake --install $ELOQDOC_SRC/src/mongo/db/modules/eloq/build
 
 # Construct variables file
@@ -227,10 +221,8 @@ fi
 
 # Build and install MongoDB binaries via scons
 export WITH_DATA_STORE=${DATA_STORE_TYPE}
-SCONS_VARIANT=${BUILD_TYPE:-RelWithDebInfo}
-export CXX=`which g++`
-export CC=`which gcc`
-
+SCONS_VARIANT=${BUILD_TYPE}
+env OPEN_LOG_SERVICE=$OPEN_LOG_SERVICE FORK_HM_PROCESS=$FORK_HM_PROCESS WITH_DATA_STORE=$DATA_STORE_TYPE \
 python2 buildscripts/scons.py \
     MONGO_VERSION=4.0.3 \
     VARIANT_DIR=${SCONS_VARIANT} \
@@ -242,13 +234,12 @@ python2 buildscripts/scons.py \
     $( [ "$ID" == "centos" ] && echo "--variables-files=env.vars" ) \
     --build-dir=#build \
     --prefix=$DEST_DIR \
-    $( [ "${BUILD_TYPE:-RelWithDebInfo}" = "Debug" ] && echo --dbg=on --opt=off || echo --dbg=off --opt=on ) \
-    $( [ "${BUILD_TYPE:-RelWithDebInfo}" = "Release" ] && echo --release --lto || true ) \
+    --dbg=on --opt=off \
     --allocator=system \
     --link-model=dynamic \
     --install-mode=hygienic \
     --disable-warnings-as-errors \
-    -j${NCORE:-4} \
+    -j4 \
     install-core
 
 # Collect runtime libraries for binaries
@@ -277,11 +268,11 @@ cd $HOME
 tar -czvf eloqdoc.tar.gz -C $DEST_DIR .
 
 # Tarball naming and upload (align with eloqkv)
-if [ -n "${TAGGED:-}" ]; then
+if [ "${TAGGED}" = "true" ]; then
     DOC_TARBALL="eloqdoc-${TAGGED}-${OS_ID}-${ARCH}.tar.gz"
     # optional record
     eval ${INSTALL_PSQL}
-    SQL="INSERT INTO doc_release VALUES ('eloqdoc', '${ARCH}', '${OS_ID}', '${DATA_STORE_ID}', $(echo ${TAGGED} | tr '.' ',')) ON CONFLICT DO NOTHING"
+    SQL="INSERT INTO tx_release VALUES ('eloqdoc', '${ARCH}', '${OS_ID}', '${DATA_STORE_ID}', $(echo ${TAGGED} | tr '.' ',')) ON CONFLICT DO NOTHING"
     psql postgresql://${PG_CONN}/eloq_release?sslmode=require -c "${SQL}" || true
 else
     DOC_TARBALL="eloqdoc-${OUT_NAME}-${OS_ID}-${ARCH}.tar.gz"

@@ -3,9 +3,58 @@
 
 # --- Mimalloc (Commonly used by tx_service, log_service) ---
 find_package(MIMALLOC REQUIRED)
+# mimalloc-2.1/mimalloc.h is installed in /usr/local/include/mimalloc-2.1/mimalloc.h, but the build system expects it in /usr/local/include/mimalloc.h in centos7,8 and rocky9.
+## Validate any provided/include-dir and clear it if it doesn't actually contain headers
+set(_MI_HEADER_OK OFF)
+if(DEFINED MIMALLOC_INCLUDE_DIR AND MIMALLOC_INCLUDE_DIR)
+    if(EXISTS "${MIMALLOC_INCLUDE_DIR}/mimalloc.h" OR EXISTS "${MIMALLOC_INCLUDE_DIR}/mimalloc-2.1/mimalloc.h")
+        set(_MI_HEADER_OK ON)
+    endif()
+endif()
+## Some environments incorrectly set MIMALLOC_INCLUDE_DIR to the CMake package directory
+## (e.g., /usr/local/lib64/cmake/mimalloc-2.1) which does not contain headers.
+## Detect and discard such values to trigger the fallback include discovery.
+if(DEFINED MIMALLOC_INCLUDE_DIR AND MIMALLOC_INCLUDE_DIR MATCHES "/cmake/")
+    message(STATUS "Dependencies: Discarding Mimalloc include directory from CMake config: ${MIMALLOC_INCLUDE_DIR}")
+    set(_MI_HEADER_OK OFF)
+endif()
+if(NOT _MI_HEADER_OK)
+    unset(MIMALLOC_INCLUDE_DIR CACHE)
+    unset(MIMALLOC_INCLUDE_DIR)
+endif()
+## Fallback: determine include root strictly for Mimalloc 2.1 when MIMALLOC_INCLUDE_DIR is not provided
+if(NOT DEFINED MIMALLOC_INCLUDE_DIR OR NOT MIMALLOC_INCLUDE_DIR)
+    set(_MIMALLOC_SEARCH_ROOTS /usr/include /usr/local/include)
+    unset(MIMALLOC_INCLUDE_DIR)
+    foreach(_root ${_MIMALLOC_SEARCH_ROOTS})
+        if(EXISTS "${_root}/mimalloc-2.1/mimalloc.h")
+            set(MIMALLOC_INCLUDE_DIR "${_root}")
+        endif()
+    endforeach()
+
+    if(MIMALLOC_INCLUDE_DIR)
+        message(STATUS "Dependencies: Fallback determined Mimalloc 2.1 include root: ${MIMALLOC_INCLUDE_DIR}")
+    else()
+        message(FATAL_ERROR "Dependencies: Could not determine Mimalloc 2.1 include directory (looked for mimalloc-2.1/mimalloc.h under /usr/include and /usr/local/include). Please install mimalloc 2.1 headers.")
+    endif()
+endif()
+
 message(STATUS "Dependencies: Found Mimalloc. Library: ${MIMALLOC_LIBRARY}, Include directory: ${MIMALLOC_INCLUDE_DIR}")
-# Add Mimalloc include directory to the global include paths
-include_directories(${MIMALLOC_INCLUDE_DIR})
+# Add Mimalloc include directory to the global include paths (guard if resolved)
+if(MIMALLOC_INCLUDE_DIR)
+    include_directories(${MIMALLOC_INCLUDE_DIR})
+endif()
+# Some environments install headers under a versioned subdir (e.g., mimalloc-2.X/mimalloc.h).
+# Add any matching versioned include directories so both <mimalloc.h> and <mimalloc-2.X/mimalloc.h> resolve.
+file(GLOB _MIMALLOC_VERSIONED_DIRS "${MIMALLOC_INCLUDE_DIR}/mimalloc-*")
+if(_MIMALLOC_VERSIONED_DIRS)
+    foreach(_mi_dir ${_MIMALLOC_VERSIONED_DIRS})
+        if(IS_DIRECTORY "${_mi_dir}")
+            include_directories("${_mi_dir}")
+            message(STATUS "Dependencies: Added versioned Mimalloc include directory: ${_mi_dir}")
+        endif()
+    endforeach()
+endif()
 
 # --- GFLAGS (Commonly used by tx_service, log_service) ---
 # Find GFLAGS include path
