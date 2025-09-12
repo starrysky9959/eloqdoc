@@ -378,11 +378,15 @@ std::pair<bool, txservice::TxErrorCode> EloqRecoveryUnit::getKV(
     Eloq::MongoRecord* record,
     bool isForWrite) {
     MONGO_LOG(1) << "EloqRecoveryUnit::getKV"
-                 << ". tableName: " << tableName.StringView() << ". mongoKey: " << key->ToString();
+                 << ". tableName: " << tableName.StringView() << ". txn: " << _txm->TxNumber()
+                 << ", isolation: " << (int)_txm->GetIsolationLevel()
+                 << ", isForWrite: " << isForWrite << ". mongoKey: " << key->ToString();
     getTxm();
     txservice::TxKey txKey(key);
     const CoroutineFunctors& coro = Client::getCurrent()->coroutineFunctors();
 
+    bool exists = false;
+    txservice::TxErrorCode err = txservice::TxErrorCode::NO_ERROR;
     for (int i = 0; i < 10; ++i) {
         txservice::ReadTxRequest readTxReq(&tableName,
                                            keySchemaVersion,
@@ -400,34 +404,42 @@ std::pair<bool, txservice::TxErrorCode> EloqRecoveryUnit::getKV(
                                            _txm);
         _txm->Execute(&readTxReq);
         readTxReq.Wait();
-        MONGO_LOG(1) << "result"
+        MONGO_LOG(1) << "EloqRecoveryUnit::getKV txn: " << _txm->TxNumber()
+                     << ". err: " << readTxReq.ErrorMsg()
                      << ". tableName: " << tableName.StringView()
                      << ". mongoKey: " << key->ToString();
-        auto err = readTxReq.ErrorCode();
+        err = readTxReq.ErrorCode();
         if (err == txservice::TxErrorCode::READ_WRITE_CONFLICT ||
             err == txservice::TxErrorCode::WRITE_WRITE_CONFLICT) {
             recorder::kConflictCounter << 1;
             continue;
         } else if (err != txservice::TxErrorCode::NO_ERROR) {
             MONGO_LOG(1) << "EloqRecoveryUnit::getKV fail"
+                         << ". txn: " << _txm->TxNumber()
+                         << ". tableName: " << tableName.StringView()
                          << ". ErrorCode: " << readTxReq.ErrorCode() << ". ErrorMsg"
                          << readTxReq.ErrorMsg();
-            return {false, readTxReq.ErrorCode()};
+            break;
         }
-        if (readTxReq.Result().first == txservice::RecordStatus::Normal) {
+
+        txservice::RecordStatus recStatus = readTxReq.Result().first;
+        if (recStatus == txservice::RecordStatus::Normal) {
+            exists = true;
             MONGO_LOG(1) << "EloqRecoveryUnit::getKV. RecordStatus::Normal. ";
-            return {true, txservice::TxErrorCode::NO_ERROR};
+            break;
         } else {
-            MONGO_LOG(1) << "EloqRecoveryUnit::getKV. RecordStatus::Non-Normal. "
-                         << (int)readTxReq.Result().first << " " << readTxReq.Result().second;
-            if (readTxReq.Result().first == txservice::RecordStatus::Unknown) {
+            MONGO_LOG(1) << "EloqRecoveryUnit::getKV. RecordStatus::Non-Normal. " << (int)recStatus
+                         << " " << readTxReq.Result().second;
+            if (recStatus == txservice::RecordStatus::Unknown) {
                 MONGO_LOG(0) << "retry readtxrequest";
                 continue;
             } else {
-                return {false, readTxReq.ErrorCode()};
+                break;
             }
         }
     }
+
+    return {exists, err};
 }
 
 std::pair<bool, txservice::TxErrorCode> EloqRecoveryUnit::getKVInternal(
