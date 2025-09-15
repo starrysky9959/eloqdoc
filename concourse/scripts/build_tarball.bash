@@ -237,7 +237,8 @@ python2 buildscripts/scons.py \
     $( [ "$ID" == "centos" ] && echo "--variables-files=env.vars" ) \
     --build-dir=#build \
     --prefix=$DEST_DIR \
-    --dbg=on --opt=off \
+    $( if [ "${BUILD_TYPE}" = "Debug" ]; then echo --dbg=on --opt=off; elif [ "${BUILD_TYPE}" = "RelWithDebInfo" ]; then echo --dbg=off --opt=on; else echo --dbg=off --opt=on; fi ) \
+    $( [ "${BUILD_TYPE}" = "Release" ] && echo --release --lto ) \
     --allocator=system \
     --link-model=dynamic \
     --install-mode=hygienic \
