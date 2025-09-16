@@ -566,7 +566,8 @@ void MultiIndexBlockImpl::commit(stdx::function<void(const BSONObj& spec)> onCre
         }
     }
 
-    _opCtx->recoveryUnit()->registerChange(new SetNeedToCleanupOnRollback(this));
+    // In EloqDoc, once the catalog is updated in txservice, should not rollback it.
+    // _opCtx->recoveryUnit()->registerChange(new SetNeedToCleanupOnRollback(this));
     _needToCleanup = false;
 }
 }  // namespace mongo

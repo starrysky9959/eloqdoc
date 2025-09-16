@@ -16,11 +16,16 @@
     var shellWaitHandle = startParallelShell(function() {
         for (var i = 0; i < 400; ++i) {
             sleep(50);
-            db.jstests_queryoptimizer3.drop();
+            try {
+                db.jstests_queryoptimizer3.drop();
+            } catch (e) {
+                print("Drop failed: " + e.message);
+            }
         }
     });
 
     for (var i = 0; i < 100; ++i) {
+      try {
         coll.drop();
         assert.commandWorked(coll.ensureIndex({a: 1}));
         assert.commandWorked(coll.ensureIndex({b: 1}));
@@ -31,7 +36,7 @@
         }
         assert.commandWorked(bulk.execute());
 
-        try {
+        // try {
             var m = i % 5;
             if (m == 0) {
                 coll.count({a: {$gte: 0}, b: {$gte: 0}});

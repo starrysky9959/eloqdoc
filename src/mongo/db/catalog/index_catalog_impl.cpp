@@ -473,6 +473,10 @@ void IndexCatalogImpl::IndexBuildBlock::success() {
 
     collection->getCatalogEntry()->indexBuildSuccess(_opCtx, _indexName);
 
+    // In EloqDoc, this collection cache is expired after the index build is committed.
+    // Need not update it.
+    return;
+
     IndexDescriptor* desc = _catalog->findIndexByName(_opCtx, _indexName, true);
     fassert(17330, desc);
     IndexCatalogEntry* entry = _catalog->_getEntries().find(desc);

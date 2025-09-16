@@ -727,7 +727,7 @@ selector:
   - jstests/core/push2.js
   - jstests/core/push_sort.js
   - jstests/core/query1.js
-  # - jstests/core/queryoptimizer3.js # 25: dassert(_collection->getCatalogEntry()->getTotalIndexCount(opCtx) == count);
+  - jstests/core/queryoptimizer3.js # 25: dassert(_collection->getCatalogEntry()->getTotalIndexCount(opCtx) == count);
   - jstests/core/queryoptimizer6.js
   # - jstests/core/queryoptimizera.js # Unsupported value for autoIndexId field: false.
   # - jstests/core/read_after_optime.js # 10: Error: command worked when it should have failed
