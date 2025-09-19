@@ -76,7 +76,7 @@ fi
 
 # Destination
 DEST_DIR="${HOME}/EloqDoc"
-mkdir -p "${DEST_DIR}/{bin,lib,conf,etc}"
+mkdir -p "${DEST_DIR}/{bin,lib,etc}"
 
 # License
 cat >"${DEST_DIR}/LICENSE.txt" <<EOF
@@ -209,7 +209,7 @@ if [ -f ${DEST_DIR}/bin/host_manager ]; then
 fi
 
 # Config files
-cp ${ELOQDOC_SRC}/concourse/scripts/mongod.conf ${DEST_DIR}/etc 
+cp ${ELOQDOC_SRC}/concourse/artifact/${DATA_STORE_TYPE}/* ${DEST_DIR}/etc 
 
 
 # Cleanup

@@ -118,7 +118,7 @@ fi
 
 # init destination directory
 DEST_DIR="${HOME}/EloqDoc"
-mkdir -p ${DEST_DIR}/{bin,lib,conf,etc}
+mkdir -p ${DEST_DIR}/{bin,lib,etc}
 export DEST_DIR
 
 # Define and write LICENSE
@@ -288,7 +288,7 @@ if [ -f ${DEST_DIR}/bin/dss_server ]; then
 fi
 
 # Config files
-cp ${ELOQDOC_SRC}/concourse/scripts/mongod.conf ${DEST_DIR}/etc
+cp ${ELOQDOC_SRC}/concourse/artifact/${DATA_STORE_TYPE}/* ${DEST_DIR}/etc
 
 cd $HOME
 tar -czvf eloqdoc.tar.gz -C $DEST_DIR .
