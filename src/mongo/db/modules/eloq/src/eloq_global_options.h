@@ -95,6 +95,7 @@ public:
     // Eloq Data Store Service
     std::string dataStoreServiceConfigFilePath;
     std::string dssPeerNode;
+    std::string dssBranchName;
 
     // rocksdb cloud
     std::string rocksdbCloudStoragePath;

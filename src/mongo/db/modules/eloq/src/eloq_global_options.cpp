@@ -269,6 +269,12 @@ Status EloqGlobalOptions::add(moe::OptionSection* options) {
                            moe::String,
                            "Eloq DataStoreService peer node endpoint")
         .setDefault(moe::Value(""));
+    eloqOptions
+        .addOptionChaining("storage.eloq.storage.dssBranchName",
+                           "eloqDssBranchName",
+                           moe::String,
+                           "Data store service branch name")
+        .setDefault(moe::Value(""));
     // RocksDB Cloud
     eloqOptions
         .addOptionChaining("storage.eloq.storage.rocksdbCloudStoragePath",
@@ -867,6 +873,10 @@ Status EloqGlobalOptions::store(const moe::Environment& params,
     if (params.count("storage.eloq.storage.dssPeerNode")) {
         eloqGlobalOptions.dssPeerNode =
             params["storage.eloq.storage.dssPeerNode"].as<std::string>();
+    }
+    if (params.count("storage.eloq.storage.dssBranchName")) {
+        eloqGlobalOptions.dssBranchName =
+            params["storage.eloq.storage.dssBranchName"].as<std::string>();
     }
 
     // RocksDB Cloud Options Parse

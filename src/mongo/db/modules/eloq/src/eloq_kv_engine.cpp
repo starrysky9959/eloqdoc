@@ -608,6 +608,7 @@ void EloqKVEngine::initDataStoreService() {
 
 #if defined(DATA_STORE_TYPE_ELOQDSS_ROCKSDB_CLOUD_S3) || \
     defined(DATA_STORE_TYPE_ELOQDSS_ROCKSDB_CLOUD_GCS)
+    std::string& dss_branch_name = eloqGlobalOptions.dssBranchName;
     // std::string ds_rocksdb_config_file_path=
     //     "/home/lzx/test-eloqsql/eloq_ds.ini";
     INIReader fake_config_reader(nullptr, 0);
@@ -639,6 +640,7 @@ void EloqKVEngine::initDataStoreService() {
         eloqGlobalOptions.txlogRocksDBCloudFileDeletionDelay;
     rocksdb_cloud_config.purger_periodicity_millis_ =
         static_cast<size_t>(eloqGlobalOptions.rocksdbCloudPurgerPeriodicitySecs) * 1000;
+    rocksdb_cloud_config.branch_name_ = dss_branch_name;
 
     bool enable_cache_replacement_ =
         fake_config_reader.GetBoolean("local", "enable_cache_replacement", false);
