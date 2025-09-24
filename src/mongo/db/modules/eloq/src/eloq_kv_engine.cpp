@@ -136,14 +136,6 @@ std::string_view extractDbName(std::string_view nss) {
     }
 }
 
-void RegisterFactory() {
-    txservice::TxKeyFactory::RegisterCreateTxKeyFunc(Eloq::MongoKey::Create);
-    txservice::TxKeyFactory::RegisterNegInfTxKey(Eloq::MongoKey::NegInfTxKey());
-    txservice::TxKeyFactory::RegisterPosInfTxKey(Eloq::MongoKey::PosInfTxKey());
-    txservice::TxKeyFactory::RegisterPackedNegativeInfinity(
-        Eloq::MongoKey::PackedNegativeInfinityTxKey());
-    txservice::TxRecordFactory::RegisterCreateTxRecordFunc(Eloq::MongoRecord::Create);
-}
 
 #if defined(DATA_STORE_TYPE_ELOQDSS_ELOQSTORE)
 static void configureEloqStore(EloqDS::EloqStoreConfig& eloq_store_config,
@@ -258,8 +250,6 @@ EloqKVEngine::EloqKVEngine(const std::string& path) : _dbPath(path) {
      defined(DATA_STORE_TYPE_ELOQDSS_ROCKSDB_CLOUD_S3))
     awsInit();
 #endif
-
-    RegisterFactory();
 
     log() << "Starting Eloq storage engine. dbPath: " << path;
 
@@ -498,8 +488,7 @@ EloqKVEngine::EloqKVEngine(const std::string& path) : _dbPath(path) {
     }
 
     _logAgent = std::make_unique<Eloq::MongoLogAgent>(eloqGlobalOptions.txlogGroupReplicaNum);
-    txservice::CatalogFactory* catalog_factories[4] = {
-        nullptr, nullptr, &_catalogFactory, &_catalogFactory};
+    txservice::CatalogFactory* catalog_factories[3] = {nullptr, nullptr, &_catalogFactory};
     _txService = std::make_unique<txservice::TxService>(catalog_factories,
                                                         &_mongoSystemHandler,
                                                         txServiceConf,
@@ -560,6 +549,7 @@ EloqKVEngine::EloqKVEngine(const std::string& path) : _dbPath(path) {
 void EloqKVEngine::initDataStoreService() {
     auto localIp = eloqGlobalOptions.localAddr.host();
     auto localPort = eloqGlobalOptions.localAddr.port();
+    txservice::CatalogFactory* catalog_factories[3] = {nullptr, nullptr, &_catalogFactory};
 
     bool opt_bootstrap = serverGlobalParams.bootstrap;
     // TODO(starrysky)
@@ -708,8 +698,8 @@ void EloqKVEngine::initDataStoreService() {
     }
     Eloq::dataStoreService->ConnectDataStore(std::move(dss_shards_map));
     // setup data store service client
-    Eloq::storeHandler =
-        std::make_unique<EloqDS::DataStoreServiceClient>(ds_config, Eloq::dataStoreService.get());
+    Eloq::storeHandler = std::make_unique<EloqDS::DataStoreServiceClient>(
+        catalog_factories, ds_config, Eloq::dataStoreService.get());
 
     if (!Eloq::storeHandler->Connect()) {
         error() << "!!!!!!!! Failed to connect ELOQ_DS server, EloqDB "

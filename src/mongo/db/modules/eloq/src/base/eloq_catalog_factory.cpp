@@ -37,10 +37,7 @@
 namespace Eloq {
 txservice::TableSchema::uptr MongoCatalogFactory::CreateTableSchema(
     const txservice::TableName& table_name, const std::string& catalog_image, uint64_t version) {
-    if (table_name == txservice::Sequences::table_name_) {
-        return std::make_unique<txservice::SequenceTableSchema>(table_name, catalog_image, version);
-    }
-
+    assert(table_name.Engine() == txservice::TableEngine::EloqDoc);
     return std::make_unique<MongoTableSchema>(table_name, catalog_image, version);
 }
 
@@ -50,16 +47,7 @@ txservice::CcMap::uptr MongoCatalogFactory::CreatePkCcMap(
     bool ccm_has_full_entries,
     txservice::CcShard* shard,
     txservice::NodeGroupId cc_ng_id) {
-    if (table_name == txservice::Sequences::table_name_) {
-        return std::make_unique<txservice::TemplateCcMap<MongoKey, MongoRecord, true, true>>(
-            shard,
-            cc_ng_id,
-            table_name,
-            table_schema->Version(),
-            table_schema,
-            ccm_has_full_entries);
-    }
-
+    assert(table_name.Engine() == txservice::TableEngine::EloqDoc);
 
     uint64_t key_version = table_schema->KeySchema()->SchemaTs();
     return std::make_unique<txservice::TemplateCcMap<MongoKey, MongoRecord, true, true>>(
@@ -163,11 +151,30 @@ std::unique_ptr<txservice::Statistics> MongoCatalogFactory::CreateTableStatistic
         table_schema, std::move(sample_pool_map), ccs, cc_ng_id);
 }
 
-txservice::TxKey MongoCatalogFactory::NegativeInfKey() {
+txservice::TxKey MongoCatalogFactory::NegativeInfKey() const {
     return MongoKey::GetNegInfTxKey();
 }
 
-txservice::TxKey MongoCatalogFactory::PositiveInfKey() {
+txservice::TxKey MongoCatalogFactory::PositiveInfKey() const {
     return MongoKey::GetPosInfTxKey();
 }
+
+txservice::TxKey MongoCatalogFactory::CreateTxKey() const {
+    return txservice::TxKey{std::make_unique<MongoKey>()};
+}
+
+txservice::TxKey MongoCatalogFactory::CreateTxKey(const char* data, size_t size) const {
+    return txservice::TxKey{std::make_unique<MongoKey>(data, size)};
+}
+
+const txservice::TxKey* MongoCatalogFactory::PackedNegativeInfinity() const {
+    return MongoKey::PackedNegativeInfinityTxKey();
+}
+
+std::unique_ptr<txservice::TxRecord> MongoCatalogFactory::CreateTxRecord() const {
+
+    return std::make_unique<MongoRecord>();
+}
+
+
 }  // namespace Eloq
