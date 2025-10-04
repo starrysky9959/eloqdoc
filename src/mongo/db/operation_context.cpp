@@ -45,7 +45,14 @@
 #include "mongo/util/scopeguard.h"
 #include "mongo/util/system_tick_source.h"
 
+#include <random>
+
 namespace mongo {
+
+
+thread_local std::random_device r;
+thread_local std::default_random_engine randomEngine{r()};
+thread_local std::uniform_int_distribution<int> uniformDist{1, 100};
 
 namespace {
 // Enabling the maxTimeAlwaysTimeOut fail point will cause any query or command run with a
@@ -287,6 +294,14 @@ void OperationContext::sleepFor(Milliseconds duration) {
 #endif
     invariant(!waitForConditionOrInterruptFor(cv, lk, duration, [] { return false; }));
 }
+
+void OperationContext::sleepForRandomMilliseconds() {
+
+    mongo::Milliseconds duration{uniformDist(randomEngine)};
+    MONGO_LOG(1) << "OperationContext, sleep for " << duration.count() << "ms";
+    sleepFor(duration);
+}
+
 
 void OperationContext::waitForConditionOrInterrupt(coro::ConditionVariable& cv,
                                                    stdx::unique_lock<coro::Mutex>& m) {

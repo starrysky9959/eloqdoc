@@ -61,9 +61,6 @@ namespace Eloq {
 extern std::unique_ptr<txservice::store::DataStoreHandler> storeHandler;
 }
 namespace mongo {
-thread_local std::random_device r;
-thread_local std::default_random_engine randomEngine{r()};
-thread_local std::uniform_int_distribution<int> uniformDist{1, 100};
 
 class EloqCatalogRecordStoreCursor : public SeekableRecordCursor {
 public:
@@ -246,10 +243,8 @@ void EloqCatalogRecordStore::deleteRecord(OperationContext* opCtx, const RecordI
             }
         }
 
-        mongo::Milliseconds duration{uniformDist(randomEngine)};
         MONGO_LOG(1) << "Fail to drop table in Eloq";
-        MONGO_LOG(1) << "Sleep for " << duration.count() << "ms";
-        opCtx->sleepFor(duration);
+        opCtx->sleepForRandomMilliseconds();
         MONGO_LOG(1) << "Retry count: " << i;
         catalogRecord.Reset();
     }
@@ -408,9 +403,8 @@ Status EloqCatalogRecordStore::updateRecord(OperationContext* opCtx,
             }
         }
 
-        mongo::Milliseconds duration{uniformDist(randomEngine)};
-        MONGO_LOG(1) << "Fail to create table in Eloq. Sleep for " << duration.count() << "ms";
-        opCtx->sleepFor(duration);
+        MONGO_LOG(1) << "Fail to create table in Eloq.";
+        opCtx->sleepForRandomMilliseconds();
         MONGO_LOG(1) << "Retry count: " << i;
         catalogRecord.Reset();
     }

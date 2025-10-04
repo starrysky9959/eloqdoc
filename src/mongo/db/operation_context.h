@@ -158,6 +158,7 @@ public:
      * Sleeps for "duration" ms; throws an exception if the operation is interrupted before then.
      */
     void sleepFor(Milliseconds duration);
+    void sleepForRandomMilliseconds();
 
     /**
      * Waits for either the condition "cv" to be signaled, this operation to be interrupted, or the

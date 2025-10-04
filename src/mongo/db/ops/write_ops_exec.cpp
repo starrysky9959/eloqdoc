@@ -421,6 +421,7 @@ bool insertBatchAndHandleErrors(OperationContext* opCtx,
                     if (e.code() == ErrorCodes::NamespaceExists) {
                         break;
                     } else if (e.code() == ErrorCodes::WriteConflict) {
+                        opCtx->sleepForRandomMilliseconds();
                         continue;
                     } else {
                         throw;
@@ -702,6 +703,7 @@ static SingleWriteResult performSingleUpdateOp(OperationContext* opCtx,
                 if (e.code() == ErrorCodes::NamespaceExists) {
                     break;
                 } else if (e.code() == ErrorCodes::WriteConflict) {
+                    opCtx->sleepForRandomMilliseconds();
                     continue;
                 } else {
                     throw;

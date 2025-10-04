@@ -218,7 +218,7 @@ Status KVCollectionCatalogEntry::prepareForIndexBuild(OperationContext* opCtx,
                         break;
                     } else {
                         newRU->abortUnitOfWork();
-                        opCtx->sleepFor(retryCount * Milliseconds{1});
+                        opCtx->sleepForRandomMilliseconds();
                     }
                 } else {
                     newRU->commitUnitOfWork();
@@ -256,7 +256,7 @@ Status KVCollectionCatalogEntry::prepareForIndexBuild(OperationContext* opCtx,
                         break;
                     } else {
                         newRU->abortUnitOfWork();
-                        opCtx->sleepFor(retryCount * Milliseconds{1});
+                        opCtx->sleepForRandomMilliseconds();
                     }
                 } else {
                     newRU->commitUnitOfWork();
