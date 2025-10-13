@@ -205,7 +205,7 @@ Status KVCollectionCatalogEntry::prepareForIndexBuild(OperationContext* opCtx,
                 opCtx->setRecoveryUnit(newRU, WriteUnitOfWork::kNotInUnitOfWork);
 
             int retryCount = 0;
-            const int maxRetry = 10;
+            const int maxRetry = 1000;
             Status tmp_st = Status::OK();
 
             while (retryCount++ < maxRetry) {
@@ -221,13 +221,16 @@ Status KVCollectionCatalogEntry::prepareForIndexBuild(OperationContext* opCtx,
                         opCtx->sleepForRandomMilliseconds();
                     }
                 } else {
+                    tmp_st = Status::OK();
                     newRU->commitUnitOfWork();
                     break;
                 }
             }
-            uassertStatusOK(tmp_st);
-
+            // Must restore the old recovery unit state before leaving the scope.
             opCtx->setRecoveryUnit(oldRU, oldState);
+            if (!tmp_st.isOK()) {
+                return tmp_st;
+            }
 
             imd.multikeyPaths = MultikeyPaths{static_cast<size_t>(spec->keyPattern().nFields())};
         }
@@ -244,7 +247,7 @@ Status KVCollectionCatalogEntry::prepareForIndexBuild(OperationContext* opCtx,
                 opCtx->setRecoveryUnit(newRU, WriteUnitOfWork::kNotInUnitOfWork);
 
             int retryCount = 0;
-            const int maxRetry = 10;
+            const int maxRetry = 1000;
             Status tmp_st = Status::OK();
             while (retryCount++ < maxRetry) {
                 newRU->beginUnitOfWork(opCtx);
@@ -259,13 +262,16 @@ Status KVCollectionCatalogEntry::prepareForIndexBuild(OperationContext* opCtx,
                         opCtx->sleepForRandomMilliseconds();
                     }
                 } else {
+                    tmp_st = Status::OK();
                     newRU->commitUnitOfWork();
                     break;
                 }
             }
-            uassertStatusOK(tmp_st);
-
+            // Must restore the old recovery unit state before leaving the scope.
             opCtx->setRecoveryUnit(oldRU, oldState);
+            if (!tmp_st.isOK()) {
+                return tmp_st;
+            }
         }
 
         md.indexes.push_back(imd);
