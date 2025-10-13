@@ -31,7 +31,7 @@
 #include <atomic>
 #include <boost/context/continuation.hpp>
 #include <boost/context/continuation_fcontext.hpp>
-#include <boost/context/protected_fixedsize_stack.hpp>
+#include <boost/context/stack_context.hpp>
 #include <functional>
 
 #include "boost/optional/optional.hpp"
@@ -80,6 +80,8 @@ public:
                         transport::SessionHandle session,
                         transport::Mode transportMode,
                         uint16_t groupId = 0);
+
+    ~ServiceStateMachine();
 
     void reset(ServiceContext* svcContext,
                transport::SessionHandle session,
@@ -261,11 +263,28 @@ private:
 #endif
     std::string _oldThreadName;
 
+    // Coroutine design
+    class NoopAllocator {
+    public:
+        NoopAllocator() = default;
+
+        boost::context::stack_context allocate() {
+            boost::context::stack_context sc;
+            return sc;
+        }
+
+        void deallocate(boost::context::stack_context& sc) {
+            // no-op
+        }
+    };
+
+    boost::context::stack_context _coroStackContext();
+
     void _migrateThreadGroup(uint16_t threadGroupId);
 
 
     static constexpr size_t kCoroStackSize = 3200 * 1024;
-    boost::context::protected_fixedsize_stack _salloc{kCoroStackSize};
+    char* _coroStack;
     boost::context::continuation _source;
 
     enum class CoroStatus { Empty = 0, OnGoing, Finished };
