@@ -282,47 +282,6 @@ kubectl config get-contexts
 kubectl config use-context <YOUR_CLUSTER_CONTEXT>
 ```
 
-### 1.3 (Optional) Add Control Plane Node Group
-
-If you need additional control plane nodes, create a separate node group configuration:
-
-```yaml
-# control-plane-nodes.yaml
-apiVersion: eksctl.io/v1alpha5
-kind: ClusterConfig
-
-metadata:
-  name: eloqdb-demo
-  region: ap-northeast-1
-  version: "1.32"
-
-managedNodeGroups:
-  - name: ap-northeast-1a-cp
-    privateNetworking: true
-    availabilityZones: ['ap-northeast-1a']
-    instanceType: c5.2xlarge
-    spot: false
-    labels:
-      eloqdata.com/node: control-plane
-    minSize: 0
-    desiredCapacity: 0
-    maxSize: 10
-    iam:
-      attachPolicyARNs:
-        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
-        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
-        - arn:aws:iam::aws:policy/AmazonEC2FullAccess
-        - arn:aws:iam::aws:policy/ElasticLoadBalancingFullAccess
-        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
-        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
-        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
-        - arn:aws:iam::<YOUR_ACCOUNT_ID>:policy/EKSFullAccess
-```
-
-```bash
-# Add control plane nodes to the cluster
-eksctl create nodegroup -f control-plane-nodes.yaml
-```
 
 ## Step 2: Configure IAM OIDC Provider
 
